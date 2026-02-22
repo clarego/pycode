@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.removeEventListener('message', handleMessage);
         setLoading(false);
         setInitialized(true);
-      }, 2000);
+      }, 500);
     }
   }, []);
 
