@@ -20,8 +20,12 @@ import {
   LogOut,
   User,
   Settings,
+  Sun,
+  Moon,
+  Terminal,
 } from 'lucide-react';
 import { templates } from '../lib/templates';
+import { useTheme } from './ThemeContext';
 
 interface ToolbarProps {
   isReady: boolean;
@@ -74,6 +78,7 @@ export default function Toolbar({
   onShowLogin,
   apiKeyLoaded = false,
 }: ToolbarProps) {
+  const { darkMode, hackerMode, toggleDarkMode, toggleHackerMode } = useTheme();
   const [showExamples, setShowExamples] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -270,6 +275,34 @@ export default function Toolbar({
           title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
         >
           {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+        </button>
+
+        <div className="w-px h-5 bg-slate-600 mx-1" />
+
+        <button
+          onClick={toggleDarkMode}
+          title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-all ${
+            darkMode
+              ? 'text-amber-300 hover:text-amber-200 hover:bg-slate-700'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
+          }`}
+        >
+          {darkMode ? <Sun size={13} /> : <Moon size={13} />}
+          <span className="hidden lg:inline">{darkMode ? 'Light' : 'Dark'}</span>
+        </button>
+
+        <button
+          onClick={toggleHackerMode}
+          title={hackerMode ? 'Disable Hacker Mode' : 'Enable Hacker Mode'}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-all ${
+            hackerMode
+              ? 'text-green-400 bg-green-950/60 border border-green-700/60 hover:bg-green-900/60 shadow-[0_0_8px_rgba(34,197,94,0.3)]'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700'
+          }`}
+        >
+          <Terminal size={13} />
+          <span className="hidden lg:inline">Hack</span>
         </button>
 
         {!loading && (

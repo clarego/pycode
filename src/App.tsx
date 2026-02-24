@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './components/auth/AuthContext';
+import { ThemeProvider } from './components/ThemeContext';
 import PythonPlayground from './components/PythonPlayground';
 import SharedView from './components/SharedView';
 import EmbedView from './components/EmbedView';
@@ -101,9 +102,11 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -68,4 +69,226 @@ body {
 
 .prop-input {
   @apply w-full px-1.5 py-1 text-[11px] bg-white border border-slate-200 rounded focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none transition-colors;
+}
+
+/* ── Hacker Mode ── */
+@keyframes hacker-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.85; }
+  94% { opacity: 1; }
+  96% { opacity: 0.9; }
+  97% { opacity: 1; }
+}
+
+@keyframes hacker-scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes hacker-matrix-drop {
+  0% { transform: translateY(-20px); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+@keyframes hacker-glow-pulse {
+  0%, 100% { text-shadow: 0 0 4px #00ff41, 0 0 8px #00ff41; }
+  50% { text-shadow: 0 0 8px #00ff41, 0 0 20px #00ff41, 0 0 40px #00ff41; }
+}
+
+@keyframes hacker-border-glow {
+  0%, 100% { box-shadow: 0 0 4px #00ff4133, inset 0 0 4px #00ff4111; }
+  50% { box-shadow: 0 0 12px #00ff4166, inset 0 0 8px #00ff4122; }
+}
+
+.hacker {
+  --hk-green: #00ff41;
+  --hk-green-dim: #00c832;
+  --hk-green-faint: #003d0f;
+  --hk-bg: #000500;
+  --hk-bg2: #010c01;
+  --hk-border: #00ff4133;
+}
+
+html.hacker {
+  animation: hacker-flicker 8s infinite;
+}
+
+html.hacker body {
+  background-color: var(--hk-bg) !important;
+  font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+  color: var(--hk-green) !important;
+}
+
+html.hacker *:not(.cm-editor):not(.cm-editor *) {
+  font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+}
+
+/* Scanline overlay */
+html.hacker body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* Moving scan line */
+html.hacker body::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(to bottom, transparent, rgba(0, 255, 65, 0.15), transparent);
+  animation: hacker-scanline 6s linear infinite;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+html.hacker div[class*="bg-slate-800"],
+html.hacker div[class*="bg-slate-900"],
+html.hacker div[class*="bg-slate-700"],
+html.hacker div[class*="bg-slate-600"] {
+  background-color: var(--hk-bg2) !important;
+  border-color: var(--hk-border) !important;
+}
+
+html.hacker [class*="border-slate"] {
+  border-color: var(--hk-border) !important;
+}
+
+html.hacker [class*="text-slate-300"],
+html.hacker [class*="text-slate-200"],
+html.hacker [class*="text-slate-100"],
+html.hacker [class*="text-white"] {
+  color: var(--hk-green) !important;
+}
+
+html.hacker [class*="text-slate-400"],
+html.hacker [class*="text-slate-500"] {
+  color: var(--hk-green-dim) !important;
+  opacity: 0.7;
+}
+
+html.hacker button:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]):not([class*="bg-green"]) {
+  color: var(--hk-green) !important;
+  background-color: transparent !important;
+  border-color: var(--hk-border) !important;
+}
+
+html.hacker button:hover:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]):not([class*="bg-green"]):not(:disabled) {
+  background-color: rgba(0, 255, 65, 0.1) !important;
+  color: var(--hk-green) !important;
+  text-shadow: 0 0 6px var(--hk-green);
+}
+
+html.hacker button[class*="bg-emerald"] {
+  background-color: #003d0f !important;
+  color: var(--hk-green) !important;
+  border: 1px solid var(--hk-green) !important;
+  text-shadow: 0 0 6px var(--hk-green);
+}
+
+html.hacker button[class*="bg-emerald"]:hover:not(:disabled) {
+  background-color: rgba(0, 255, 65, 0.15) !important;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.4) !important;
+}
+
+html.hacker button[class*="bg-red"] {
+  background-color: #1a0000 !important;
+  color: #ff3333 !important;
+  border: 1px solid #ff333333 !important;
+}
+
+html.hacker button[class*="bg-sky"] {
+  background-color: #001a1f !important;
+  color: #00e5ff !important;
+  border: 1px solid #00e5ff33 !important;
+}
+
+html.hacker [class*="bg-sky-900"],
+html.hacker [class*="bg-sky-800"] {
+  background-color: #001a1f !important;
+}
+
+html.hacker [class*="text-sky"] {
+  color: #00e5ff !important;
+}
+
+html.hacker [class*="text-emerald"],
+html.hacker [class*="text-teal"],
+html.hacker [class*="text-green"] {
+  color: var(--hk-green) !important;
+}
+
+html.hacker span[class*="bg-sky"],
+html.hacker div[class*="bg-sky"] {
+  background-color: transparent !important;
+  border-color: #00e5ff33 !important;
+  color: #00e5ff !important;
+}
+
+html.hacker [class*="rounded"],
+html.hacker [class*="shadow"] {
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.1) !important;
+}
+
+html.hacker .cm-editor,
+html.hacker .cm-editor .cm-content,
+html.hacker .cm-editor .cm-line {
+  background-color: #000300 !important;
+  color: var(--hk-green) !important;
+  caret-color: var(--hk-green) !important;
+}
+
+html.hacker .cm-editor .cm-gutters {
+  background-color: #000200 !important;
+  border-right-color: var(--hk-border) !important;
+  color: var(--hk-green-dim) !important;
+}
+
+html.hacker .cm-editor .cm-activeLineGutter,
+html.hacker .cm-editor .cm-activeLine {
+  background-color: rgba(0, 255, 65, 0.05) !important;
+}
+
+html.hacker .cm-editor .cm-cursor {
+  border-left-color: var(--hk-green) !important;
+  box-shadow: 0 0 8px var(--hk-green) !important;
+}
+
+html.hacker .cm-editor .cm-selectionBackground,
+html.hacker .cm-editor.cm-focused .cm-selectionBackground {
+  background-color: rgba(0, 255, 65, 0.15) !important;
+}
+
+html.hacker ::-webkit-scrollbar-thumb {
+  background: #00ff4133 !important;
+}
+
+html.hacker ::-webkit-scrollbar-thumb:hover {
+  background: #00ff4166 !important;
+}
+
+html.hacker input,
+html.hacker select,
+html.hacker textarea {
+  background-color: #000500 !important;
+  color: var(--hk-green) !important;
+  border-color: var(--hk-border) !important;
+}
+
+html.hacker input::placeholder,
+html.hacker textarea::placeholder {
+  color: #00ff4155 !important;
 }
