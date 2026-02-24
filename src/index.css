@@ -128,13 +128,60 @@ html:not(.dark):not(.hacker) [class*="text-slate-500"] {
   color: var(--lm-text-faint) !important;
 }
 
-html:not(.dark):not(.hacker) button:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]):not([class*="disabled"]) {
+html:not(.dark):not(.hacker) button:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]) {
   color: var(--lm-text) !important;
+}
+
+html:not(.dark):not(.hacker) button:disabled {
+  color: #94a3b8 !important;
 }
 
 html:not(.dark):not(.hacker) button:hover:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]):not(:disabled) {
   background-color: var(--lm-bg3) !important;
   color: var(--lm-text) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-teal-300"],
+html:not(.dark):not(.hacker) [class*="text-teal-200"] {
+  color: #0f766e !important;
+}
+
+html:not(.dark):not(.hacker) [class*="bg-teal-800"],
+html:not(.dark):not(.hacker) [class*="bg-teal-700"],
+html:not(.dark):not(.hacker) [class*="hover:bg-teal-800"]:hover,
+html:not(.dark):not(.hacker) [class*="hover:bg-teal-700"]:hover {
+  background-color: #ccfbf1 !important;
+}
+
+html:not(.dark):not(.hacker) [class*="border-teal-700"],
+html:not(.dark):not(.hacker) [class*="border-teal-600"] {
+  border-color: #5eead4 !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-sky-300"] {
+  color: #0284c7 !important;
+}
+
+html:not(.dark):not(.hacker) span[class*="bg-sky-900"],
+html:not(.dark):not(.hacker) div[class*="bg-sky-900"] {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+}
+
+html:not(.dark):not(.hacker) [class*="border-sky-700"] {
+  border-color: #7dd3fc !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-amber-300"] {
+  color: #b45309 !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-green-400"] {
+  color: #15803d !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-emerald-400"] {
+  color: #059669 !important;
 }
 
 html:not(.dark):not(.hacker) [class*="hover:bg-slate-700"]:hover {
@@ -149,10 +196,10 @@ html:not(.dark):not(.hacker) [class*="w-px"][class*="bg-slate-600"] {
   background-color: var(--lm-border) !important;
 }
 
-html:not(.dark):not(.hacker) span[class*="bg-sky-900"],
-html:not(.dark):not(.hacker) div[class*="bg-sky-900"] {
-  background-color: #eff6ff !important;
-  border-color: #bfdbfe !important;
+html:not(.dark):not(.hacker) span[class*="bg-slate-700"],
+html:not(.dark):not(.hacker) a[class*="bg-slate-700"] {
+  background-color: var(--lm-bg3) !important;
+  color: var(--lm-text) !important;
 }
 
 html:not(.dark):not(.hacker) .cm-editor,
