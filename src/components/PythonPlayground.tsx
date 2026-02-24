@@ -811,7 +811,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           title="Powered by Digital Vector"
         >
           <span className="text-[9px] text-slate-500 group-hover:text-slate-400 tracking-wide uppercase">Powered by</span>
-          <img src="/digivec_logo.png" alt="Digital Vector" className="h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
+          <img src="/digivec_logo.png" alt="Digital Vector" className="h-6 opacity-80 group-hover:opacity-100 transition-opacity" />
         </a>
       </div>
 
