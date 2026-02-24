@@ -296,7 +296,6 @@ html:not(.dark):not(.hacker) textarea {
 }
 
 html.hacker {
-  animation: hacker-flicker 8s infinite;
 }
 
 html.hacker body {
