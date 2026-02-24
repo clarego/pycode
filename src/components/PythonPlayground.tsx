@@ -807,9 +807,11 @@ Keep it concise - no more than 6-8 sentences total.`,
           href="https://digitalvector.com.au"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center hover:opacity-75 transition-opacity"
+          className="flex items-center gap-1.5 hover:opacity-90 transition-opacity group"
+          title="Powered by Digital Vector"
         >
-          <img src="/digivec_logo.png" alt="Digital Vector" className="h-4 opacity-60" />
+          <span className="text-[9px] text-slate-500 group-hover:text-slate-400 tracking-wide uppercase">Powered by</span>
+          <img src="/digivec_logo.png" alt="Digital Vector" className="h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
         </a>
       </div>
 

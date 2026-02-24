@@ -95,6 +95,10 @@ export default function Toolbar({
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-slate-800 border-b border-slate-700">
       <div className="flex items-center gap-1.5">
+        <a href="/" className="flex items-center mr-2 shrink-0">
+          <img src="/pycode_logo.png" alt="PyCode" className="h-8 w-auto" />
+        </a>
+        <div className="w-px h-5 bg-slate-600 mr-1" />
         <button
           onClick={onRun}
           disabled={!isReady || isRunning}
