@@ -210,9 +210,12 @@ html:not(.dark):not(.hacker) a[class*="bg-slate-700"] {
 }
 
 html:not(.dark):not(.hacker) .cm-editor,
-html:not(.dark):not(.hacker) .cm-editor .cm-content,
-html:not(.dark):not(.hacker) .cm-editor .cm-line {
+html:not(.dark):not(.hacker) .cm-editor .cm-content {
   background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+html:not(.dark):not(.hacker) .cm-editor .cm-line {
   color: #1e293b !important;
 }
 
@@ -228,11 +231,15 @@ html:not(.dark):not(.hacker) .cm-editor .cm-activeLine {
 }
 
 html:not(.dark):not(.hacker) .cm-editor .cm-selectionBackground {
-  background-color: #93c5fd !important;
+  background-color: #bfdbfe !important;
 }
 
 html:not(.dark):not(.hacker) .cm-editor.cm-focused .cm-selectionBackground {
-  background-color: #60a5fa !important;
+  background-color: #93c5fd !important;
+}
+
+html:not(.dark):not(.hacker) .cm-editor ::selection {
+  background-color: #93c5fd !important;
 }
 
 html:not(.dark):not(.hacker) ::-webkit-scrollbar-thumb {
