@@ -71,6 +71,132 @@ body {
   @apply w-full px-1.5 py-1 text-[11px] bg-white border border-slate-200 rounded focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none transition-colors;
 }
 
+/* ── Light Mode ── */
+html:not(.dark):not(.hacker) {
+  --lm-bg: #f1f5f9;
+  --lm-bg2: #ffffff;
+  --lm-bg3: #e2e8f0;
+  --lm-bg4: #cbd5e1;
+  --lm-border: #cbd5e1;
+  --lm-text: #1e293b;
+  --lm-text-muted: #64748b;
+  --lm-text-faint: #94a3b8;
+}
+
+html:not(.dark):not(.hacker) body {
+  background-color: var(--lm-bg) !important;
+  color: var(--lm-text) !important;
+}
+
+html:not(.dark):not(.hacker) div[class*="bg-slate-900"] {
+  background-color: var(--lm-bg) !important;
+}
+
+html:not(.dark):not(.hacker) div[class*="bg-slate-800"] {
+  background-color: var(--lm-bg2) !important;
+}
+
+html:not(.dark):not(.hacker) div[class*="bg-slate-700"] {
+  background-color: var(--lm-bg3) !important;
+}
+
+html:not(.dark):not(.hacker) div[class*="bg-slate-600"] {
+  background-color: var(--lm-bg4) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="border-slate-700"],
+html:not(.dark):not(.hacker) [class*="border-slate-600"] {
+  border-color: var(--lm-border) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="border-slate-500"] {
+  border-color: #94a3b8 !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-slate-100"],
+html:not(.dark):not(.hacker) [class*="text-slate-200"],
+html:not(.dark):not(.hacker) [class*="text-slate-300"],
+html:not(.dark):not(.hacker) [class*="text-white"] {
+  color: var(--lm-text) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-slate-400"] {
+  color: var(--lm-text-muted) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="text-slate-500"] {
+  color: var(--lm-text-faint) !important;
+}
+
+html:not(.dark):not(.hacker) button:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]):not([class*="disabled"]) {
+  color: var(--lm-text) !important;
+}
+
+html:not(.dark):not(.hacker) button:hover:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]):not(:disabled) {
+  background-color: var(--lm-bg3) !important;
+  color: var(--lm-text) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="hover:bg-slate-700"]:hover {
+  background-color: var(--lm-bg3) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="bg-slate-700"]:not(button:hover) {
+  background-color: var(--lm-bg3) !important;
+}
+
+html:not(.dark):not(.hacker) [class*="w-px"][class*="bg-slate-600"] {
+  background-color: var(--lm-border) !important;
+}
+
+html:not(.dark):not(.hacker) span[class*="bg-sky-900"],
+html:not(.dark):not(.hacker) div[class*="bg-sky-900"] {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+html:not(.dark):not(.hacker) .cm-editor,
+html:not(.dark):not(.hacker) .cm-editor .cm-content,
+html:not(.dark):not(.hacker) .cm-editor .cm-line {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+html:not(.dark):not(.hacker) .cm-editor .cm-gutters {
+  background-color: #f8fafc !important;
+  border-right-color: var(--lm-border) !important;
+  color: #94a3b8 !important;
+}
+
+html:not(.dark):not(.hacker) .cm-editor .cm-activeLineGutter,
+html:not(.dark):not(.hacker) .cm-editor .cm-activeLine {
+  background-color: #f0f9ff !important;
+}
+
+html:not(.dark):not(.hacker) .cm-editor .cm-selectionBackground,
+html:not(.dark):not(.hacker) .cm-editor.cm-focused .cm-selectionBackground {
+  background-color: #bfdbfe !important;
+}
+
+html:not(.dark):not(.hacker) ::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+}
+
+html:not(.dark):not(.hacker) ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+html:not(.dark):not(.hacker) input:not([type]),
+html:not(.dark):not(.hacker) input[type="text"],
+html:not(.dark):not(.hacker) input[type="password"],
+html:not(.dark):not(.hacker) input[type="email"],
+html:not(.dark):not(.hacker) select,
+html:not(.dark):not(.hacker) textarea {
+  background-color: #ffffff !important;
+  color: var(--lm-text) !important;
+  border-color: var(--lm-border) !important;
+}
+
 /* ── Hacker Mode ── */
 @keyframes hacker-flicker {
   0%, 100% { opacity: 1; }
