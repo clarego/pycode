@@ -220,9 +220,12 @@ html:not(.dark):not(.hacker) .cm-editor .cm-activeLine {
   background-color: #f0f9ff !important;
 }
 
-html:not(.dark):not(.hacker) .cm-editor .cm-selectionBackground,
+html:not(.dark):not(.hacker) .cm-editor .cm-selectionBackground {
+  background-color: #93c5fd !important;
+}
+
 html:not(.dark):not(.hacker) .cm-editor.cm-focused .cm-selectionBackground {
-  background-color: #bfdbfe !important;
+  background-color: #60a5fa !important;
 }
 
 html:not(.dark):not(.hacker) ::-webkit-scrollbar-thumb {

@@ -53,10 +53,10 @@ const editorTheme = EditorView.theme({
     backgroundColor: '#f8fafc',
   },
   '.cm-selectionBackground': {
-    backgroundColor: '#dbeafe !important',
+    backgroundColor: '#93c5fd !important',
   },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: '#bfdbfe !important',
+    backgroundColor: '#60a5fa !important',
   },
   '.cm-cursor': {
     borderLeftColor: '#1e293b',
