@@ -292,6 +292,7 @@ export default function GuiDesigner({ form, onFormChange, onGenerateCode, onClos
               onAddWidget={handleAddWidget}
               onDeleteWidget={handleDeleteWidget}
               onDoubleClick={handleDoubleClick}
+              onUpdateForm={handleUpdateForm}
             />
 
             <PropertiesPanel
