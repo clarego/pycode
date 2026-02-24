@@ -331,21 +331,24 @@ function TkSpinbox({ node, onEvent }: WidgetProps) {
 
 function TkText({ node, onEvent }: WidgetProps) {
   const style = getWidgetStyle(node.config);
-  const value = (node.config._text_value as string) ?? '';
+  const value = typeof node.config._text_value === 'string' ? node.config._text_value : '';
   const w = (node.config.width as number) || 40;
   const h = (node.config.height as number) || 10;
+  const isDisabled = node.config.state === 'disabled';
+  const bgColor = style.backgroundColor || (node.config.bg as string) || '#fff';
 
   return (
     <textarea
       value={value}
-      onChange={(e) => onEvent(node.id, 'text_change', { value: e.target.value })}
+      readOnly={isDisabled}
+      onChange={isDisabled ? undefined : (e) => onEvent(node.id, 'text_change', { value: e.target.value })}
       className="tk-text"
       style={{
         fontFamily: "'Courier New', monospace",
         fontSize: '12px',
-        color: style.color || '#1a1a1a',
-        backgroundColor: style.backgroundColor || '#fff',
-        padding: '3px 4px',
+        color: style.color || (node.config.fg as string) || '#1a1a1a',
+        backgroundColor: bgColor,
+        padding: '4px 6px',
         border: '2px inset #c0c0c0',
         borderRadius: 1,
         outline: 'none',
@@ -353,7 +356,10 @@ function TkText({ node, onEvent }: WidgetProps) {
         height: `${h * 16}px`,
         resize: 'both',
         whiteSpace: 'pre',
+        overflowY: 'auto',
+        overflowX: 'auto',
         overflowWrap: 'normal',
+        cursor: isDisabled ? 'default' : 'text',
       }}
     />
   );

@@ -244,6 +244,8 @@ class _TkWidget:
     def winfo_exists(self): return True
     def winfo_children(self): return list(self._children)
 
+    def pack_propagate(self, flag=True): pass
+    def grid_propagate(self, flag=True): pass
     def rowconfigure(self, index, **kw): pass
     def columnconfigure(self, index, **kw): pass
     def grid_rowconfigure(self, index, **kw): pass
@@ -273,10 +275,10 @@ class _TkWidget:
             if sv is not None:
                 cfg[k] = sv
 
-        if hasattr(self, '_entry_content') and self._entry_content:
+        if hasattr(self, '_entry_content') and self._entry_content is not None:
             cfg['_entry_value'] = self._entry_content
 
-        if hasattr(self, '_text_content') and self._text_content:
+        if hasattr(self, '_text_content') and self._text_content is not None:
             cfg['_text_value'] = self._text_content
 
         if hasattr(self, '_items') and self._items:
