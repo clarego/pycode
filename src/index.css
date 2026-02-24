@@ -452,7 +452,11 @@ html.hacker .cm-editor .cm-cursor {
 
 html.hacker .cm-editor .cm-selectionBackground,
 html.hacker .cm-editor.cm-focused .cm-selectionBackground {
-  background-color: rgba(0, 255, 65, 0.15) !important;
+  background-color: rgba(0, 255, 65, 0.35) !important;
+}
+
+html.hacker .cm-editor ::selection {
+  background-color: rgba(0, 255, 65, 0.35) !important;
 }
 
 html.hacker ::-webkit-scrollbar-thumb {
