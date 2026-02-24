@@ -120,6 +120,13 @@ html:not(.dark):not(.hacker) [class*="text-white"] {
   color: var(--lm-text) !important;
 }
 
+html:not(.dark):not(.hacker) button[class*="bg-emerald"][class*="text-white"],
+html:not(.dark):not(.hacker) button[class*="bg-red"][class*="text-white"],
+html:not(.dark):not(.hacker) button[class*="bg-sky"][class*="text-white"],
+html:not(.dark):not(.hacker) button[class*="bg-teal"][class*="text-white"] {
+  color: #ffffff !important;
+}
+
 html:not(.dark):not(.hacker) [class*="text-slate-400"] {
   color: var(--lm-text-muted) !important;
 }
