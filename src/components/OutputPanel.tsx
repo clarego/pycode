@@ -339,14 +339,15 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
               className="flex items-center gap-0 mt-1"
             >
               {inputRequest.prompt && (
-                <span className="text-slate-100 shrink-0 whitespace-pre font-mono text-sm">{inputRequest.prompt}</span>
+                <span className="text-amber-300 shrink-0 whitespace-pre font-mono text-sm">{inputRequest.prompt}</span>
               )}
               <input
                 ref={inputRef}
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                className="flex-1 bg-transparent border-none outline-none text-emerald-300 font-mono text-sm caret-emerald-400 placeholder:text-slate-600"
+                style={{ background: 'transparent', colorScheme: 'dark' }}
+                className="flex-1 border-none outline-none text-emerald-300 font-mono text-sm caret-emerald-400"
                 placeholder=""
                 autoFocus
               />
