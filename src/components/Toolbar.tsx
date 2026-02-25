@@ -97,7 +97,7 @@ export default function Toolbar({
       {/* Branding row */}
       <div className="flex items-center justify-between px-4 py-0.5 border-b border-slate-700/60">
         <a href="/" className="flex items-center gap-3 shrink-0 group">
-          <img src="/pycode_logo.png" alt="PyCode" className="h-[5.25rem] w-auto" />
+          <img src="/pycode_logo.png" alt="PyCode" className="h-10 w-auto" />
           <div className="hidden sm:flex flex-col leading-tight">
             <span className="text-base font-bold text-white tracking-tight">PyCode</span>
             <span className="text-[11px] text-slate-400 tracking-wide">Online Python Compiler</span>
