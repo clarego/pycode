@@ -54,28 +54,28 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
   }, [inputRequest]);
 
   useEffect(() => {
-    if (tkTree) {
+    if (tkTree && !inputRequest) {
       setActiveTab('gui');
     }
-  }, [tkTree]);
+  }, [tkTree, inputRequest]);
 
   useEffect(() => {
-    if (pgFrame) {
+    if (pgFrame && !inputRequest) {
       setActiveTab('pygame');
     }
-  }, [pgFrame]);
+  }, [pgFrame, inputRequest]);
 
   useEffect(() => {
-    if (turtleFrame) {
+    if (turtleFrame && !inputRequest) {
       setActiveTab('turtle');
     }
-  }, [turtleFrame]);
+  }, [turtleFrame, inputRequest]);
 
   useEffect(() => {
-    if (flaskHtml) {
+    if (flaskHtml && !inputRequest) {
       setActiveTab('web');
     }
-  }, [flaskHtml]);
+  }, [flaskHtml, inputRequest]);
 
   useEffect(() => {
     if (!tkTree && !pgFrame && !turtleFrame && !flaskHtml) {
@@ -127,11 +127,19 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   activeTab === 'console'
                     ? 'bg-slate-700/60 text-slate-200'
+                    : inputRequest
+                    ? 'text-amber-400 hover:text-amber-300'
                     : 'text-slate-500 hover:text-slate-400'
                 }`}
               >
                 <Terminal size={12} />
                 Console
+                {inputRequest && activeTab !== 'console' && (
+                  <span className="relative flex h-2 w-2 ml-0.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+                  </span>
+                )}
               </button>
               {hasGui && (
                 <button
