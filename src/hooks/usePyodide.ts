@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurtleFrame } from '../components/TurtleRenderer';
 
 export interface OutputLine {
-  type: 'stdout' | 'stderr' | 'error' | 'status' | 'info';
+  type: 'stdout' | 'stderr' | 'error' | 'status' | 'info' | 'input';
   text: string;
   line?: number | null;
 }
@@ -294,7 +294,7 @@ export function usePyodide(options?: UsePyodideOptions): UsePyodideReturn {
   const submitInput = useCallback((value: string) => {
     if (!inputBufferRef.current || !inputRequest) return;
     const promptText = inputRequest.prompt || '';
-    setOutput((prev) => [...prev, { type: 'stdout', text: promptText + value }]);
+    setOutput((prev) => [...prev, { type: 'input', text: promptText + value }]);
     const signalArray = new Int32Array(inputBufferRef.current, 0, 2);
     const dataArray = new Uint8Array(inputBufferRef.current, 8);
     const encoder = new TextEncoder();

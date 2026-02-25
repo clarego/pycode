@@ -239,6 +239,9 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
               case 'info':
                 className += ' text-slate-500 italic';
                 break;
+              case 'input':
+                className += ' text-amber-300';
+                break;
             }
 
             return (
