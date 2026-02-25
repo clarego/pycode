@@ -3612,6 +3612,8 @@ _turtle_timers = []
 _flask_virtual_files = {}
 `);
 
+    const sanitizeCode = (src) => src.replace(/[\u200B-\u200D\uFEFF\u00AD\u034F\u115F\u1160\u17B4\u17B5\u180B-\u180D\u2060-\u206F\uFFA0\uFFF0-\uFFF8]/g, '');
+
     for (const [filename, content] of Object.entries(files)) {
       if (filename !== mainFile) {
         const parts = filename.split('/');
@@ -3622,13 +3624,13 @@ _flask_virtual_files = {}
             try { py.FS.mkdir(dir); } catch (e) { /* exists */ }
           }
         }
-        py.FS.writeFile(`/home/pyodide/${filename}`, content);
+        py.FS.writeFile(`/home/pyodide/${filename}`, sanitizeCode(content));
       }
     }
 
     let vfCode = '_flask_virtual_files = {\n';
     for (const [filename, content] of Object.entries(files)) {
-      const escaped = content.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
+      const escaped = sanitizeCode(content).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
       vfCode += `  '${filename}': '${escaped}',\n`;
     }
     vfCode += '}\n';
@@ -3636,7 +3638,7 @@ _flask_virtual_files = {}
 
     const initialFiles = new Set(Object.keys(files));
 
-    const mainCode = files[mainFile] || '';
+    const mainCode = sanitizeCode(files[mainFile] || '');
 
     const loadedPackages = await loadPackagesForCode(mainCode);
 
