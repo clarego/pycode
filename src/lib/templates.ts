@@ -325,19 +325,134 @@ print(code)`,
   {
     name: 'Turtle Graphics',
     files: {
-      'main.py': `import turtle
+      'main.py': `"""
+Turtle Animation — Cosmic Spiral Burst
+Uses turtle graphics + time.sleep() for animated pacing effects.
+
+Run with: python turtle_animation.py
+"""
+
+import turtle
+import time
+import math
+import random
 
 screen = turtle.Screen()
-screen.bgcolor("lightgreen")
+screen.title("Cosmic Spiral Burst")
+screen.bgcolor("black")
+screen.setup(width=800, height=800)
+screen.tracer(0)
 
-alex = turtle.Turtle()
-alex.color("blue")
-alex.pensize(3)
+t = turtle.Turtle()
+t.hideturtle()
+t.speed(0)
+t.pensize(2)
 
-for _ in range(4):
-    alex.forward(100)
-    alex.right(90)
+COLOURS = [
+    "#FF4ECD", "#FF6B35", "#FFD700", "#00FF88",
+    "#00CFFF", "#A66CFF", "#FF3366", "#7FFF00",
+]
 
+def draw_star(x, y, size, colour):
+    t.penup()
+    t.goto(x, y)
+    t.pendown()
+    t.color(colour)
+    for _ in range(5):
+        t.forward(size)
+        t.right(144)
+
+def burst(cx, cy, radius, colour, spokes=24):
+    t.color(colour)
+    for i in range(spokes):
+        angle = (360 / spokes) * i
+        rad   = math.radians(angle)
+        x = cx + radius * math.cos(rad)
+        y = cy + radius * math.sin(rad)
+        t.penup();  t.goto(cx, cy)
+        t.pendown(); t.goto(x, y)
+
+def phase_spiral():
+    t.penup(); t.goto(0, 0); t.setheading(0)
+    for step in range(360):
+        colour = COLOURS[step % len(COLOURS)]
+        t.color(colour)
+        t.pendown()
+        t.forward(step * 0.55)
+        t.right(59)
+        if step % 30 == 0:
+            screen.update()
+            time.sleep(0.04)
+    screen.update()
+    time.sleep(0.6)
+
+def phase_bursts():
+    for r in range(20, 320, 40):
+        colour = random.choice(COLOURS)
+        burst(0, 0, r, colour)
+        screen.update()
+        time.sleep(0.12)
+    time.sleep(0.5)
+
+def phase_stars():
+    for _ in range(40):
+        x = random.randint(-350, 350)
+        y = random.randint(-350, 350)
+        size   = random.randint(8, 30)
+        colour = random.choice(COLOURS)
+        draw_star(x, y, size, colour)
+        if _ % 5 == 0:
+            screen.update()
+            time.sleep(0.07)
+    screen.update()
+    time.sleep(0.6)
+
+def phase_flower():
+    t.penup(); t.goto(0, 0); t.setheading(0)
+    for petal in range(36):
+        colour = COLOURS[petal % len(COLOURS)]
+        t.color(colour)
+        t.pendown()
+        t.circle(100, 60)
+        t.right(120)
+        t.circle(100, 60)
+        t.right(180 - (360 / 36))
+        if petal % 6 == 0:
+            screen.update()
+            time.sleep(0.08)
+    screen.update()
+    time.sleep(0.6)
+
+def phase_text():
+    writer = turtle.Turtle()
+    writer.hideturtle()
+    writer.penup()
+    writer.color("white")
+    for msg, col in [("3", "#FF4ECD"), ("2", "#FFD700"), ("1", "#00FF88"), ("Done!", "white")]:
+        writer.clear()
+        writer.color(col)
+        writer.goto(0, -40)
+        writer.write(msg, align="center", font=("Arial", 72, "bold"))
+        screen.update()
+        time.sleep(0.7)
+    writer.clear()
+
+print("Starting animation...")
+
+phase_spiral()
+
+t.clear()
+phase_bursts()
+
+phase_stars()
+
+t.clear()
+phase_flower()
+
+phase_text()
+
+screen.update()
+print("Animation complete! Click the window to exit.")
 screen.exitonclick()`,
     },
   },
