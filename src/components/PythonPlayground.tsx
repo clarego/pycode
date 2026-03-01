@@ -22,6 +22,7 @@ import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationC
 import { saveSnippet } from '../lib/snippets';
 import { saveSession } from '../lib/sessions';
 import SavedProjectsDialog from './SavedProjectsDialog';
+import { saveProject } from '../lib/savedProjects';
 import type { Task } from './modules/curriculum';
 
 const DEFAULT_FORM: FormState = {
@@ -101,6 +102,9 @@ export default function PythonPlayground({
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showOpenDialog, setShowOpenDialog] = useState(false);
+  const [notebookSaveStatus, setNotebookSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'unsaved'>('idle');
+  const [notebookSavedId, setNotebookSavedId] = useState<string | null>(null);
+  const notebookSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [showTaskHint, setShowTaskHint] = useState(false);
   const dragCounterRef = useRef(0);
@@ -127,6 +131,12 @@ export default function PythonPlayground({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    setNotebookSaveStatus('idle');
+    setNotebookSavedId(null);
+    if (notebookSaveTimerRef.current) clearTimeout(notebookSaveTimerRef.current);
+  }, [activeFile]);
 
   useEffect(() => {
     if (initialTask) {
@@ -156,9 +166,44 @@ export default function PythonPlayground({
   const handleFileChange = useCallback(
     (content: string) => {
       setFiles((prev) => ({ ...prev, [activeFile]: content }));
+      if (activeFile.endsWith('.ipynb') && profile) {
+        setNotebookSaveStatus('unsaved');
+        if (notebookSaveTimerRef.current) clearTimeout(notebookSaveTimerRef.current);
+        notebookSaveTimerRef.current = setTimeout(async () => {
+          setNotebookSaveStatus('saving');
+          try {
+            const currentFiles = await new Promise<Record<string, string>>((resolve) => {
+              setFiles((prev) => { resolve(prev); return prev; });
+            });
+            const projectName = activeFile.includes('/') ? activeFile.split('/').pop()! : activeFile;
+            const saved = await saveProject(profile.username, projectName, currentFiles, activeFile, notebookSavedId ?? undefined);
+            setNotebookSavedId(saved.id);
+            setNotebookSaveStatus('saved');
+          } catch {
+            setNotebookSaveStatus('unsaved');
+          }
+        }, 3000);
+      }
     },
-    [activeFile]
+    [activeFile, profile, notebookSavedId]
   );
+
+  const handleNotebookManualSave = useCallback(async () => {
+    if (!profile || !activeFile.endsWith('.ipynb')) return;
+    if (notebookSaveTimerRef.current) clearTimeout(notebookSaveTimerRef.current);
+    setNotebookSaveStatus('saving');
+    try {
+      const currentFiles = await new Promise<Record<string, string>>((resolve) => {
+        setFiles((prev) => { resolve(prev); return prev; });
+      });
+      const projectName = activeFile.includes('/') ? activeFile.split('/').pop()! : activeFile;
+      const saved = await saveProject(profile.username, projectName, currentFiles, activeFile, notebookSavedId ?? undefined);
+      setNotebookSavedId(saved.id);
+      setNotebookSaveStatus('saved');
+    } catch {
+      setNotebookSaveStatus('unsaved');
+    }
+  }, [profile, activeFile, notebookSavedId]);
 
   const handleAddFile = useCallback((filename: string) => {
     const content = filename.endsWith('.ipynb')
@@ -513,6 +558,8 @@ Keep it concise - no more than 6-8 sentences total.`,
           output={output}
           plots={plots}
           filename={activeFile}
+          onSave={profile ? handleNotebookManualSave : undefined}
+          saveStatus={notebookSaveStatus}
         />
       ) : (
         <CodeEditor

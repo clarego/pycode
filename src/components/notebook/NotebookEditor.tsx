@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, Plus, Download, Code2, Type, RotateCcw } from 'lucide-react';
+import { Play, Plus, Download, Code2, Type, RotateCcw, Cloud, CloudOff, Loader2 } from 'lucide-react';
 import NotebookCellComponent from './NotebookCell';
 import type { CellOutput } from './NotebookCell';
 import {
@@ -19,6 +19,8 @@ interface NotebookEditorProps {
   output: OutputLine[];
   plots: PlotData[];
   filename?: string;
+  onSave?: () => Promise<void>;
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'unsaved';
 }
 
 export default function NotebookEditor({
@@ -29,6 +31,8 @@ export default function NotebookEditor({
   output,
   plots,
   filename,
+  onSave,
+  saveStatus = 'idle',
 }: NotebookEditorProps) {
   const [notebook, setNotebook] = useState<NotebookDocument>(() => parseNotebook(value));
   const [cellOutputs, setCellOutputs] = useState<Record<string, CellOutput>>({});
@@ -277,6 +281,31 @@ export default function NotebookEditor({
         <span className="text-[10px] text-slate-400">
           {notebook.cells.length} cell{notebook.cells.length !== 1 ? 's' : ''}
         </span>
+        {onSave && (
+          <button
+            onClick={onSave}
+            disabled={saveStatus === 'saving'}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors ${
+              saveStatus === 'saved'
+                ? 'text-emerald-600 hover:bg-slate-100'
+                : saveStatus === 'unsaved'
+                  ? 'text-amber-600 hover:bg-slate-100'
+                  : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            title="Save notebook to your account"
+          >
+            {saveStatus === 'saving' ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : saveStatus === 'saved' ? (
+              <Cloud size={13} />
+            ) : saveStatus === 'unsaved' ? (
+              <CloudOff size={13} />
+            ) : (
+              <Cloud size={13} />
+            )}
+            {saveStatus === 'saved' ? 'Saved' : saveStatus === 'unsaved' ? 'Save*' : 'Save'}
+          </button>
+        )}
         <button
           onClick={handleDownload}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 text-xs font-medium rounded transition-colors"
