@@ -61,20 +61,37 @@ function FilesModal({ files, studentName, onClose }: { files: Record<string, str
   );
 }
 
-export default function SubmissionViewer() {
+interface SubmissionViewerProps {
+  filterUsername?: string;
+}
+
+export default function SubmissionViewer({ filterUsername }: SubmissionViewerProps = {}) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [viewingFiles, setViewingFiles] = useState<{ files: Record<string, string>; studentName: string } | null>(null);
 
   const fetchSubmissions = useCallback(async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('task_submissions')
       .select('*, profiles!task_submissions_student_id_fkey(username), tasks!task_submissions_task_id_fkey(title, share_code)')
       .order('submitted_at', { ascending: false });
+
+    if (filterUsername) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', filterUsername)
+        .maybeSingle();
+      if (profile?.id) {
+        query = query.eq('student_id', profile.id);
+      }
+    }
+
+    const { data } = await query;
     setSubmissions((data as unknown as Submission[]) || []);
     setLoading(false);
-  }, []);
+  }, [filterUsername]);
 
   useEffect(() => { fetchSubmissions(); }, [fetchSubmissions]);
 
@@ -106,6 +123,7 @@ export default function SubmissionViewer() {
           {submissions.filter(s => s.reviewed).length} reviewed
         </span>
       </div>
+
 
       {submissions.length === 0 ? (
         <div className="text-center py-16 text-sm text-slate-400">No submissions yet.</div>

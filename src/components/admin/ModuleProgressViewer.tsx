@@ -125,9 +125,10 @@ function ResetConfirmModal({ username, moduleName, onConfirm, onCancel }: ResetC
 interface ModuleProgressViewerProps {
   initialUser?: string | null;
   onClearUser?: () => void;
+  hideUserBanner?: boolean;
 }
 
-export default function ModuleProgressViewer({ initialUser, onClearUser }: ModuleProgressViewerProps = {}) {
+export default function ModuleProgressViewer({ initialUser, onClearUser, hideUserBanner }: ModuleProgressViewerProps = {}) {
   const [summaries, setSummaries] = useState<UserSummary[]>([]);
   const [allRows, setAllRows] = useState<ProgressRow[]>([]);
   const [expanded, setExpanded] = useState<string | null>(initialUser ?? null);
@@ -204,7 +205,7 @@ export default function ModuleProgressViewer({ initialUser, onClearUser }: Modul
 
   return (
     <div>
-      {initialUser && (
+      {initialUser && !hideUserBanner && (
         <div className="flex items-center justify-between mb-4 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-xl">
           <div className="flex items-center gap-2 text-sm text-sky-700">
             <Users size={14} />

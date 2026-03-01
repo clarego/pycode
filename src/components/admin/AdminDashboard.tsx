@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, ClipboardList, FileCheck, LogOut, Code2, GraduationCap } from 'lucide-react';
+import { Users, ClipboardList, FileCheck, LogOut, Code2, GraduationCap, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import UserManagement from './UserManagement';
 import TaskManager from './TaskManager';
@@ -7,6 +7,7 @@ import SubmissionViewer from './SubmissionViewer';
 import ModuleProgressViewer from './ModuleProgressViewer';
 
 type Tab = 'users' | 'tasks' | 'submissions' | 'progress';
+type UserDetailTab = 'progress' | 'submissions';
 
 const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'users', label: 'Users', icon: Users },
@@ -19,9 +20,11 @@ export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [userDetailTab, setUserDetailTab] = useState<UserDetailTab>('progress');
 
   const handleSelectUser = (username: string) => {
     setSelectedUser(username);
+    setUserDetailTab('progress');
     setActiveTab('progress');
   };
 
@@ -30,6 +33,10 @@ export default function AdminDashboard() {
     if (tab !== 'progress') {
       setSelectedUser(null);
     }
+  };
+
+  const handleClearUser = () => {
+    setSelectedUser(null);
   };
 
   return (
@@ -101,10 +108,61 @@ export default function AdminDashboard() {
             {activeTab === 'tasks' && <TaskManager />}
             {activeTab === 'submissions' && <SubmissionViewer />}
             {activeTab === 'progress' && (
-              <ModuleProgressViewer
-                initialUser={selectedUser}
-                onClearUser={() => setSelectedUser(null)}
-              />
+              selectedUser ? (
+                <div>
+                  <div className="flex items-center justify-between mb-5 px-4 py-3 bg-sky-50 border border-sky-200 rounded-xl">
+                    <div className="flex items-center gap-2 text-sm text-sky-700">
+                      <Users size={14} />
+                      <span>Viewing <strong>{selectedUser}</strong></span>
+                    </div>
+                    <button
+                      onClick={handleClearUser}
+                      className="flex items-center gap-1 text-xs text-sky-500 hover:text-sky-700 transition-colors"
+                    >
+                      <X size={13} />
+                      Show all
+                    </button>
+                  </div>
+
+                  <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit border border-slate-200">
+                    <button
+                      onClick={() => setUserDetailTab('progress')}
+                      className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        userDetailTab === 'progress'
+                          ? 'bg-white text-slate-800 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <GraduationCap size={14} />
+                      Module Progress
+                    </button>
+                    <button
+                      onClick={() => setUserDetailTab('submissions')}
+                      className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        userDetailTab === 'submissions'
+                          ? 'bg-white text-slate-800 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <FileCheck size={14} />
+                      Submissions
+                    </button>
+                  </div>
+
+                  {userDetailTab === 'progress' && (
+                    <ModuleProgressViewer
+                      initialUser={selectedUser}
+                      onClearUser={handleClearUser}
+                      hideUserBanner
+                    />
+                  )}
+                  {userDetailTab === 'submissions' && (
+                    <SubmissionViewer filterUsername={selectedUser} />
+                  )}
+                </div>
+              ) : (
+                <ModuleProgressViewer onClearUser={handleClearUser} />
+              )
             )}
           </div>
         </main>
