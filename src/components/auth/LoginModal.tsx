@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { X, LogIn, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, LogIn, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -12,6 +13,29 @@ export default function LoginModal({ onClose }: LoginModalProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [usernames, setUsernames] = useState<string[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase
+      .from('profiles')
+      .select('username')
+      .order('username', { ascending: true })
+      .then(({ data }) => {
+        if (data) setUsernames(data.map((r) => r.username));
+      });
+  }, []);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +52,10 @@ export default function LoginModal({ onClose }: LoginModalProps) {
       setLoading(false);
     }
   };
+
+  const filteredUsernames = usernames.filter((u) =>
+    u.toLowerCase().includes(username.toLowerCase())
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -60,16 +88,54 @@ export default function LoginModal({ onClose }: LoginModalProps) {
               <label htmlFor="login-username" className="block text-sm font-medium text-slate-700 mb-1.5">
                 Username
               </label>
-              <input
-                id="login-username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
-                disabled={loading}
-                autoFocus
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition-all disabled:opacity-50"
-              />
+              <div className="relative" ref={dropdownRef}>
+                <input
+                  id="login-username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setDropdownOpen(true);
+                  }}
+                  onFocus={() => setDropdownOpen(true)}
+                  placeholder="Select or type your username"
+                  disabled={loading}
+                  autoFocus
+                  autoComplete="off"
+                  className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition-all disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setDropdownOpen((o) => !o)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <ChevronDown size={16} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {dropdownOpen && filteredUsernames.length > 0 && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                      {filteredUsernames.map((u) => (
+                        <button
+                          key={u}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setUsername(u);
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-sky-50 hover:text-sky-700 ${
+                            username === u ? 'bg-sky-50 text-sky-700 font-medium' : 'text-slate-700'
+                          }`}
+                        >
+                          {u}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1.5">
