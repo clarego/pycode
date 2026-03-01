@@ -9,6 +9,8 @@ import PythonPlayground from '../PythonPlayground';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
 import LoginModal from '../auth/LoginModal';
 import { ArrowLeft, GraduationCap, ChevronRight, BookOpen, KeyRound } from 'lucide-react';
+import { useSessionRecorder } from '../../hooks/useSessionRecorder';
+import { saveSession } from '../../lib/sessions';
 
 type ModulesSubview = 'map' | 'module';
 
@@ -32,6 +34,7 @@ export default function ModulesView() {
 
   const currentFilesRef = useRef<Record<string, string>>({});
   const currentActiveFileRef = useRef<string>('main.py');
+  const sessionRecorder = useSessionRecorder();
 
   useEffect(() => {
     const local = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
@@ -56,8 +59,9 @@ export default function ModulesView() {
 
   const handleStartTask = useCallback((task: Task, module: Module) => {
     const taskIndex = module.tasks.findIndex(t => t.id === task.id);
+    sessionRecorder.reset();
     setActiveTaskInfo({ task, taskIndex, module });
-  }, []);
+  }, [sessionRecorder]);
 
   const handleOpenTaskById = useCallback((moduleId: string, taskId: string) => {
     const mod = curriculum.find(m => m.id === moduleId);
@@ -65,11 +69,12 @@ export default function ModulesView() {
     const task = mod.tasks.find(t => t.id === taskId);
     if (!task) return;
     const taskIndex = mod.tasks.indexOf(task);
+    sessionRecorder.reset();
     setSelectedModuleId(moduleId);
     setSubview('module');
     setActiveTaskInfo({ task, taskIndex, module: mod });
     setShowPastWork(false);
-  }, []);
+  }, [sessionRecorder]);
 
   const handleMarkDone = useCallback(async () => {
     if (!activeTaskInfo) return;
@@ -82,7 +87,17 @@ export default function ModulesView() {
     const { task, taskIndex, module } = activeTaskInfo;
     const savedCode = currentFilesRef.current[currentActiveFileRef.current] ?? currentFilesRef.current['main.py'] ?? '';
 
-    await markTaskComplete(user.username, module.id, task.id, taskIndex, savedCode);
+    const { snapshots, durationMs } = sessionRecorder.getSnapshots();
+    let sessionShareId: string | null = null;
+    if (snapshots.length > 0) {
+      const result = await saveSession(snapshots, durationMs, currentActiveFileRef.current, user.username);
+      if ('shareId' in result) {
+        sessionShareId = result.shareId;
+      }
+    }
+
+    await markTaskComplete(user.username, module.id, task.id, taskIndex, savedCode, sessionShareId);
+    sessionRecorder.reset();
     setPastWorkKey(k => k + 1);
 
     setPraiseTaskId(task.id);
@@ -90,7 +105,7 @@ export default function ModulesView() {
       setPraiseTaskId(null);
       advanceToNext(module, taskIndex);
     }, 2200);
-  }, [activeTaskInfo, user]);
+  }, [activeTaskInfo, user, sessionRecorder]);
 
   const advanceToNext = useCallback((currentModule: Module, currentTaskIndex: number) => {
     const nextTaskIndex = currentTaskIndex + 1;
@@ -238,6 +253,7 @@ export default function ModulesView() {
                 onFilesChange={(files, activeFile) => {
                   currentFilesRef.current = files;
                   currentActiveFileRef.current = activeFile;
+                  sessionRecorder.updateFiles(files, activeFile);
                 }}
               />
             ) : (

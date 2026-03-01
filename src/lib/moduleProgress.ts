@@ -7,12 +7,30 @@ export interface ProgressRow {
   task_index: number;
   completed_at: string;
   saved_code?: string;
+  session_share_id?: string | null;
 }
 
-export async function markTaskComplete(username: string, moduleId: string, taskId: string, taskIndex: number, savedCode?: string): Promise<void> {
+export async function markTaskComplete(
+  username: string,
+  moduleId: string,
+  taskId: string,
+  taskIndex: number,
+  savedCode?: string,
+  sessionShareId?: string | null,
+): Promise<void> {
   const { error } = await supabase
     .from('module_progress')
-    .upsert({ username, module_id: moduleId, task_id: taskId, task_index: taskIndex, saved_code: savedCode ?? null }, { onConflict: 'username,task_id' });
+    .upsert(
+      {
+        username,
+        module_id: moduleId,
+        task_id: taskId,
+        task_index: taskIndex,
+        saved_code: savedCode ?? null,
+        session_share_id: sessionShareId ?? null,
+      },
+      { onConflict: 'username,task_id' },
+    );
   if (error) console.error('[moduleProgress] upsert error:', error);
 
   const existing = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
@@ -37,17 +55,16 @@ export async function loadUserProgress(username: string): Promise<Record<string,
 export async function loadUserCompletedCode(username: string): Promise<ProgressRow[]> {
   const { data } = await supabase
     .from('module_progress')
-    .select('username, module_id, task_id, task_index, completed_at, saved_code')
+    .select('username, module_id, task_id, task_index, completed_at, saved_code, session_share_id')
     .eq('username', username)
     .order('completed_at', { ascending: true });
   return data || [];
 }
 
-
 export async function loadAllUsersProgress(): Promise<ProgressRow[]> {
   const { data, error } = await supabase
     .from('module_progress')
-    .select('username, module_id, task_id, task_index, completed_at, saved_code')
+    .select('username, module_id, task_id, task_index, completed_at, saved_code, session_share_id')
     .order('completed_at', { ascending: false });
   if (error) console.error('[moduleProgress] loadAllUsersProgress error:', error);
   return data || [];

@@ -19,7 +19,9 @@ import {
   X,
   Trash2,
   RotateCcw,
+  Play,
 } from 'lucide-react';
+import SessionReview from '../SessionReview';
 
 const moduleColors: Record<string, string> = {
   'module-1': 'bg-emerald-500',
@@ -130,6 +132,7 @@ export default function ModuleProgressViewer() {
   const [codeModal, setCodeModal] = useState<{ title: string; code: string } | null>(null);
   const [resetTarget, setResetTarget] = useState<{ username: string; moduleId: string; moduleName: string } | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [playbackShareId, setPlaybackShareId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -228,9 +231,14 @@ export default function ModuleProgressViewer() {
           getUserRows={getUserRows}
           onViewCode={(title, code) => setCodeModal({ title, code })}
           onResetModule={(username, moduleId, moduleName) => setResetTarget({ username, moduleId, moduleName })}
+          onWatchPlayback={(shareId) => setPlaybackShareId(shareId)}
         />
       ) : (
-        <ActivityView allRows={allRows} onViewCode={(title, code) => setCodeModal({ title, code })} />
+        <ActivityView
+          allRows={allRows}
+          onViewCode={(title, code) => setCodeModal({ title, code })}
+          onWatchPlayback={(shareId) => setPlaybackShareId(shareId)}
+        />
       )}
 
       {codeModal && (
@@ -246,6 +254,24 @@ export default function ModuleProgressViewer() {
         />
       )}
 
+      {playbackShareId && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-700 shrink-0">
+            <span className="text-xs font-semibold text-white">Session Playback</span>
+            <button
+              onClick={() => setPlaybackShareId(null)}
+              className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <X size={13} />
+              Close
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <SessionReview shareId={playbackShareId} />
+          </div>
+        </div>
+      )}
+
       {resetting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -255,13 +281,14 @@ export default function ModuleProgressViewer() {
   );
 }
 
-function StudentsView({ summaries, expanded, onToggle, getUserRows, onViewCode, onResetModule }: {
+function StudentsView({ summaries, expanded, onToggle, getUserRows, onViewCode, onResetModule, onWatchPlayback }: {
   summaries: UserSummary[];
   expanded: string | null;
   onToggle: (u: string) => void;
   getUserRows: (u: string) => ProgressRow[];
   onViewCode: (title: string, code: string) => void;
   onResetModule: (username: string, moduleId: string, moduleName: string) => void;
+  onWatchPlayback: (shareId: string) => void;
 }) {
   if (summaries.length === 0) {
     return (
@@ -358,42 +385,57 @@ function StudentsView({ summaries, expanded, onToggle, getUserRows, onViewCode, 
                         <div className="h-1 bg-slate-200 rounded-full overflow-hidden mb-2">
                           <div className={`h-full ${bg} opacity-70 rounded-full transition-all`} style={{ width: `${modPct}%` }} />
                         </div>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-col gap-1">
                           {mod.tasks.map((task, i) => {
                             const row = modRows.find(r => r.task_index === i);
                             const done = !!row;
                             const hasCode = !!row?.saved_code;
+                            const hasSession = !!row?.session_share_id;
+                            if (!done) {
+                              return (
+                                <div key={i} className="flex items-center gap-2 px-2 py-1 rounded bg-slate-100 border border-slate-200">
+                                  <span className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold text-slate-400 bg-slate-200 shrink-0">{i + 1}</span>
+                                  <span className="text-[10px] text-slate-400 truncate flex-1">{task.title}</span>
+                                </div>
+                              );
+                            }
                             return (
-                              <div
-                                key={i}
-                                title={`Task ${i + 1}: ${task.title}${hasCode ? ' — click to view code' : ''}`}
-                                onClick={() => {
-                                  if (done) {
-                                    onViewCode(
-                                      `${student.username} — ${mod.title} · Task ${i + 1}: ${task.title}`,
-                                      row?.saved_code || ''
-                                    );
-                                  }
-                                }}
-                                className={`w-6 h-6 rounded flex items-center justify-center text-[9px] font-bold border transition-all ${
-                                  done
-                                    ? `bg-emerald-50 border-emerald-200 text-emerald-600 ${hasCode ? 'cursor-pointer hover:bg-emerald-100 hover:border-emerald-300 hover:scale-110' : 'cursor-default'}`
-                                    : 'bg-slate-100 border-slate-200 text-slate-400 cursor-default'
-                                }`}
-                              >
-                                {done
-                                  ? hasCode
-                                    ? <Code2 size={10} className="text-emerald-600" />
-                                    : <CheckCircle2 size={10} className="text-emerald-500" />
-                                  : <span>{i + 1}</span>
-                                }
+                              <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 border border-emerald-200">
+                                <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                                <span className="text-[10px] font-medium text-emerald-700 truncate flex-1">{task.title}</span>
+                                {hasCode && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onViewCode(
+                                        `${student.username} — ${mod.title} · Task ${i + 1}: ${task.title}`,
+                                        row?.saved_code || ''
+                                      );
+                                    }}
+                                    title="View submitted code"
+                                    className="flex items-center gap-0.5 text-[10px] font-medium text-sky-600 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded transition-colors shrink-0"
+                                  >
+                                    <Code2 size={9} />
+                                    Code
+                                  </button>
+                                )}
+                                {hasSession && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onWatchPlayback(row!.session_share_id!);
+                                    }}
+                                    title="Watch coding session playback"
+                                    className="flex items-center gap-0.5 text-[10px] font-medium text-amber-600 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded transition-colors shrink-0"
+                                  >
+                                    <Play size={9} fill="currentColor" />
+                                    Watch
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
                         </div>
-                        {modRows.some(r => r.saved_code) && (
-                          <p className="text-[9px] text-slate-400 mt-1.5">Click a task to view saved code</p>
-                        )}
                       </div>
                     );
                   })}
@@ -407,7 +449,11 @@ function StudentsView({ summaries, expanded, onToggle, getUserRows, onViewCode, 
   );
 }
 
-function ActivityView({ allRows, onViewCode }: { allRows: ProgressRow[]; onViewCode: (title: string, code: string) => void }) {
+function ActivityView({ allRows, onViewCode, onWatchPlayback }: {
+  allRows: ProgressRow[];
+  onViewCode: (title: string, code: string) => void;
+  onWatchPlayback: (shareId: string) => void;
+}) {
   const recent = [...allRows].sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()).slice(0, 50);
 
   if (recent.length === 0) {
@@ -421,12 +467,13 @@ function ActivityView({ allRows, onViewCode }: { allRows: ProgressRow[]; onViewC
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 text-xs font-medium text-slate-500 grid grid-cols-5 gap-3">
+      <div className="px-5 py-3 border-b border-slate-100 text-xs font-medium text-slate-500 grid grid-cols-6 gap-3">
         <span>Student</span>
         <span>Module</span>
         <span>Task</span>
         <span>Completed</span>
         <span>Code</span>
+        <span>Session</span>
       </div>
       <div className="divide-y divide-slate-50">
         {recent.map((row) => {
@@ -436,7 +483,7 @@ function ActivityView({ allRows, onViewCode }: { allRows: ProgressRow[]; onViewC
           const date = new Date(row.completed_at);
 
           return (
-            <div key={`${row.username}-${row.task_id}`} className="px-5 py-2.5 grid grid-cols-5 gap-3 text-xs text-slate-700 hover:bg-slate-50 transition-colors">
+            <div key={`${row.username}-${row.task_id}`} className="px-5 py-2.5 grid grid-cols-6 gap-3 text-xs text-slate-700 hover:bg-slate-50 transition-colors">
               <span className="font-medium text-slate-800">{row.username}</span>
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${bg} shrink-0`} />
@@ -454,7 +501,20 @@ function ActivityView({ allRows, onViewCode }: { allRows: ProgressRow[]; onViewC
                     className="flex items-center gap-1 text-sky-600 hover:text-sky-800 font-medium transition-colors"
                   >
                     <Code2 size={11} />
-                    View
+                    Code
+                  </button>
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
+              </span>
+              <span>
+                {row.session_share_id ? (
+                  <button
+                    onClick={() => onWatchPlayback(row.session_share_id!)}
+                    className="flex items-center gap-1 text-amber-600 hover:text-amber-800 font-medium transition-colors"
+                  >
+                    <Play size={11} fill="currentColor" />
+                    Watch
                   </button>
                 ) : (
                   <span className="text-slate-300">—</span>
