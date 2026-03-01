@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { Users, ClipboardList, FileCheck, LogOut, Code2 } from 'lucide-react';
+import { Users, ClipboardList, FileCheck, LogOut, Code2, GraduationCap } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import UserManagement from './UserManagement';
 import TaskManager from './TaskManager';
 import SubmissionViewer from './SubmissionViewer';
+import ModuleProgressViewer from './ModuleProgressViewer';
 
-type Tab = 'users' | 'tasks' | 'submissions';
+type Tab = 'users' | 'tasks' | 'submissions' | 'progress';
 
 const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'users', label: 'Users', icon: Users },
   { id: 'tasks', label: 'Tasks', icon: ClipboardList },
   { id: 'submissions', label: 'Submissions', icon: FileCheck },
+  { id: 'progress', label: 'Module Progress', icon: GraduationCap },
 ];
 
 export default function AdminDashboard() {
@@ -83,6 +85,7 @@ export default function AdminDashboard() {
             {activeTab === 'users' && <UserManagement />}
             {activeTab === 'tasks' && <TaskManager />}
             {activeTab === 'submissions' && <SubmissionViewer />}
+            {activeTab === 'progress' && <ModuleProgressViewer />}
           </div>
         </main>
       </div>

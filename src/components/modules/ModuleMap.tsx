@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { curriculum, Module } from './curriculum';
-import { Clock, ChevronRight, CheckCircle2, BookOpen, Zap, Trophy, Lock } from 'lucide-react';
+import { ChevronRight, CheckCircle2, BookOpen, Lock } from 'lucide-react';
 
 interface ModuleMapProps {
   onSelectModule: (moduleId: string) => void;
+  completedKeys?: Record<string, boolean>;
 }
 
 const colorMap: Record<string, { bg: string; border: string; badge: string; dot: string; progress: string; icon: string }> = {
@@ -89,195 +90,136 @@ const colorMap: Record<string, { bg: string; border: string; badge: string; dot:
   },
 };
 
-const difficultyColors: Record<string, string> = {
-  Beginner: 'text-emerald-400 bg-emerald-900/40 border-emerald-700/50',
-  Intermediate: 'text-amber-400 bg-amber-900/40 border-amber-700/50',
-  Advanced: 'text-red-400 bg-red-900/40 border-red-700/50',
-};
-
-function getProgress(moduleId: string, taskCount: number): number {
-  const completed = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
+function getProgressFromKeys(moduleId: string, taskCount: number, keys: Record<string, boolean>): number {
   let done = 0;
   for (let i = 0; i < taskCount; i++) {
-    const key = `${moduleId}-${i}`;
-    if (completed[key]) done++;
+    if (keys[`${moduleId}-${i}`]) done++;
   }
   return done;
 }
 
-function getTotalProgress(): { done: number; total: number } {
-  const completed = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
-  const total = curriculum.reduce((acc, m) => acc + m.tasks.length, 0);
-  const done = Object.values(completed).filter(Boolean).length;
-  return { done, total };
-}
-
-function isModuleUnlocked(index: number): boolean {
+function isModuleUnlocked(index: number, keys: Record<string, boolean>): boolean {
   if (index === 0) return true;
   const prev = curriculum[index - 1];
-  const done = getProgress(prev.id, prev.tasks.length);
+  const done = getProgressFromKeys(prev.id, prev.tasks.length, keys);
   return done >= Math.ceil(prev.tasks.length / 2);
 }
 
-export default function ModuleMap({ onSelectModule }: ModuleMapProps) {
-  const [, forceUpdate] = useState(0);
+export default function ModuleMap({ onSelectModule, completedKeys = {} }: ModuleMapProps) {
+  const [localKeys, setLocalKeys] = useState<Record<string, boolean>>(completedKeys);
 
   useEffect(() => {
-    const handler = () => forceUpdate(n => n + 1);
+    setLocalKeys(completedKeys);
+  }, [completedKeys]);
+
+  useEffect(() => {
+    const handler = () => {
+      setLocalKeys(JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}'));
+    };
     window.addEventListener('pycode_progress_update', handler);
     return () => window.removeEventListener('pycode_progress_update', handler);
   }, []);
 
-  const { done: totalDone, total: totalTasks } = getTotalProgress();
-  const overallPct = Math.round((totalDone / totalTasks) * 100);
+  const total = curriculum.reduce((acc, m) => acc + m.tasks.length, 0);
+  const totalDone = Object.values(localKeys).filter(Boolean).length;
+  const overallPct = Math.round((totalDone / total) * 100);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="text-white">
       {/* Header */}
-      <div className="bg-slate-900 border-b border-slate-800">
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <BookOpen size={18} className="text-sky-400" />
-                <span className="text-sky-400 text-sm font-medium uppercase tracking-widest">Learning Path</span>
-              </div>
-              <h1 className="text-3xl font-bold text-white mb-2">Python Modules</h1>
-              <p className="text-slate-400 text-sm max-w-xl">
-                A structured curriculum for Year 9/10 students — from turtle drawing to real maths problem solving. Complete tasks to unlock the next module.
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-1 min-w-[120px]">
-              <div className="flex items-center gap-2">
-                <Trophy size={15} className="text-amber-400" />
-                <span className="text-2xl font-bold text-white">{totalDone}</span>
-                <span className="text-slate-500 text-sm">/ {totalTasks}</span>
-              </div>
-              <div className="text-xs text-slate-500">tasks completed</div>
-              <div className="w-full mt-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 rounded-full transition-all duration-500"
-                  style={{ width: `${overallPct}%` }}
-                />
-              </div>
-              <div className="text-xs text-slate-400">{overallPct}% complete</div>
-            </div>
+      <div className="bg-slate-900/60 border-b border-slate-800 px-5 py-5">
+        <div className="flex items-center gap-2 mb-1">
+          <BookOpen size={14} className="text-sky-400" />
+          <span className="text-sky-400 text-xs font-medium uppercase tracking-widest">Learning Path</span>
+        </div>
+        <h1 className="text-xl font-bold text-white mb-1">Python Modules</h1>
+        <p className="text-slate-400 text-xs leading-relaxed mb-3">
+          10 modules from turtle basics to maths problem solving. Complete tasks to unlock the next module.
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 rounded-full transition-all duration-500"
+              style={{ width: `${overallPct}%` }}
+            />
           </div>
+          <span className="text-xs text-slate-400 shrink-0">{totalDone}/{total}</span>
         </div>
       </div>
 
-      {/* Module Grid */}
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {curriculum.map((module, index) => {
-            const colors = colorMap[module.color] || colorMap.emerald;
-            const done = getProgress(module.id, module.tasks.length);
-            const pct = Math.round((done / module.tasks.length) * 100);
-            const unlocked = isModuleUnlocked(index);
-            const allDone = done === module.tasks.length;
+      {/* Module list (compact for sidebar) */}
+      <div className="px-3 py-4 space-y-2">
+        {curriculum.map((module, index) => {
+          const colors = colorMap[module.color] || colorMap.emerald;
+          const done = getProgressFromKeys(module.id, module.tasks.length, localKeys);
+          const pct = Math.round((done / module.tasks.length) * 100);
+          const unlocked = isModuleUnlocked(index, localKeys);
+          const allDone = done === module.tasks.length;
 
-            return (
-              <ModuleCard
-                key={module.id}
-                module={module}
-                colors={colors}
-                done={done}
-                pct={pct}
-                unlocked={unlocked}
-                allDone={allDone}
-                onSelect={() => unlocked && onSelectModule(module.id)}
-              />
-            );
-          })}
-        </div>
+          return (
+            <ModuleCard
+              key={module.id}
+              module={module}
+              colors={colors}
+              done={done}
+              pct={pct}
+              unlocked={unlocked}
+              allDone={allDone}
+              completedKeys={localKeys}
+              onSelect={() => unlocked && onSelectModule(module.id)}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
+type ColorEntry = { bg: string; border: string; badge: string; dot: string; progress: string; icon: string };
+
 interface ModuleCardProps {
   module: Module;
-  colors: ReturnType<typeof Object.values<typeof colorMap>[0]>;
+  colors: ColorEntry;
   done: number;
   pct: number;
   unlocked: boolean;
   allDone: boolean;
+  completedKeys: Record<string, boolean>;
   onSelect: () => void;
 }
 
-function ModuleCard({ module, colors, done, pct, unlocked, allDone, onSelect }: ModuleCardProps) {
-  const DiffIcon = module.difficulty === 'Beginner' ? Zap : module.difficulty === 'Intermediate' ? BookOpen : Trophy;
-
+function ModuleCard({ module, colors, done, pct, unlocked, allDone, completedKeys, onSelect }: ModuleCardProps) {
   return (
     <button
       onClick={onSelect}
       disabled={!unlocked}
       className={`
-        w-full text-left p-5 rounded-xl border transition-all duration-200
+        w-full text-left px-3 py-3 rounded-lg border transition-all duration-200
         ${colors.bg} ${colors.border}
-        ${unlocked ? 'cursor-pointer hover:scale-[1.01] active:scale-[0.99]' : 'opacity-40 cursor-not-allowed'}
+        ${unlocked ? 'cursor-pointer hover:brightness-110' : 'opacity-35 cursor-not-allowed'}
       `}
     >
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3">
-          <div className={`
-            w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm
-            ${allDone ? 'bg-emerald-500/20 text-emerald-300' : `${colors.bg} ${colors.icon}`}
-            border ${allDone ? 'border-emerald-500/40' : 'border-slate-700/50'}
-          `}>
-            {allDone ? <CheckCircle2 size={18} /> : (
-              <span className="text-xs font-bold opacity-60">M{module.number}</span>
-            )}
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium mb-0.5">Module {module.number}</div>
-            <div className="text-sm font-semibold text-white leading-tight">{module.title}</div>
-          </div>
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 border ${allDone ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : `${colors.bg} border-slate-700/50 ${colors.icon}`}`}>
+          {allDone ? <CheckCircle2 size={13} /> : <span className="text-[10px] font-bold opacity-70">{module.number}</span>}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {!unlocked && <Lock size={12} className="text-slate-600" />}
-          {unlocked && <ChevronRight size={14} className="text-slate-500" />}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold text-white truncate">{module.title}</div>
+          <div className="text-[10px] text-slate-500">{module.estimatedTime} · {module.tasks.length} tasks</div>
         </div>
-      </div>
-
-      <p className="text-xs text-slate-400 leading-relaxed mb-4 line-clamp-2">{module.description}</p>
-
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${difficultyColors[module.difficulty]}`}>
-          <DiffIcon size={9} />
-          {module.difficulty}
-        </span>
-        <span className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded-full border border-slate-700/40">
-          <Clock size={9} />
-          {module.estimatedTime}
-        </span>
-        <span className="text-[10px] text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded-full border border-slate-700/40">
-          {module.tasks.length} tasks
-        </span>
+        {!unlocked ? <Lock size={11} className="text-slate-600 shrink-0" /> : <ChevronRight size={12} className="text-slate-500 shrink-0" />}
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${colors.progress} rounded-full transition-all duration-500`}
-            style={{ width: `${pct}%` }}
-          />
+        <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+          <div className={`h-full ${colors.progress} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-[10px] text-slate-500 shrink-0">{done}/{module.tasks.length}</span>
-      </div>
-
-      {/* Task dots */}
-      <div className="flex gap-1 mt-2">
-        {module.tasks.map((_, i) => {
-          const taskKey = `${module.id}-${i}`;
-          const taskDone = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}')[taskKey];
-          return (
-            <div
-              key={i}
-              className={`w-2 h-2 rounded-full transition-colors ${taskDone ? colors.dot : 'bg-slate-700'}`}
-            />
-          );
-        })}
+        <div className="flex gap-0.5 shrink-0">
+          {module.tasks.map((_, i) => (
+            <div key={i} className={`w-1.5 h-1.5 rounded-full ${completedKeys[`${module.id}-${i}`] ? colors.dot : 'bg-slate-700'}`} />
+          ))}
+        </div>
+        <span className="text-[9px] text-slate-500 shrink-0">{done}/{module.tasks.length}</span>
       </div>
     </button>
   );

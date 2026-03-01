@@ -16,7 +16,7 @@ import type { FormState } from './gui-designer/types';
 import { usePyodide } from '../hooks/usePyodide';
 import { useSessionRecorder } from '../hooks/useSessionRecorder';
 import { serializeNotebook, createEmptyNotebook } from '../lib/notebook';
-import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationCap, Lightbulb } from 'lucide-react';
+import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationCap, Lightbulb, CheckCircle2 } from 'lucide-react';
 
 import { saveSnippet } from '../lib/snippets';
 import { saveSession } from '../lib/sessions';
@@ -51,6 +51,9 @@ interface PythonPlaygroundProps {
   onShowLogin?: () => void;
   initialTask?: Task | null;
   onTaskConsumed?: () => void;
+  onMarkDone?: () => void;
+  praiseTaskId?: string | null;
+  isTaskDone?: boolean;
 }
 
 export default function PythonPlayground({
@@ -68,6 +71,9 @@ export default function PythonPlayground({
   onShowLogin,
   initialTask,
   onTaskConsumed,
+  onMarkDone,
+  praiseTaskId,
+  isTaskDone = false,
 }: PythonPlaygroundProps) {
   const [files, setFiles] = useState<Record<string, string>>(
     initialFiles || { 'main.py': DEFAULT_CODE }
@@ -814,14 +820,23 @@ Keep it concise - no more than 6-8 sentences total.`,
       />
 
       {activeTask && (
-        <div className="bg-slate-900 border-b border-sky-700/60 px-4 py-2.5 flex items-start gap-3 flex-wrap">
+        <div className="relative bg-slate-900 border-b border-sky-700/60 px-4 py-2.5 flex items-start gap-3 flex-wrap">
+          {praiseTaskId === activeTask.id && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-emerald-950/90 backdrop-blur-sm rounded-sm">
+              <div className="flex flex-col items-center gap-2 animate-bounce-once">
+                <div className="text-2xl">🎉</div>
+                <span className="text-sm font-bold text-emerald-300">Excellent work! Task complete!</span>
+                <span className="text-xs text-emerald-400">Loading next task...</span>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2 shrink-0 mt-0.5">
             <GraduationCap size={14} className="text-sky-400" />
             <span className="text-xs text-sky-400 font-semibold">Task:</span>
           </div>
           <div className="flex-1 min-w-0">
             <span className="text-xs text-white font-medium">{activeTask.title}</span>
-            <span className="text-slate-400 text-xs ml-2">{activeTask.description}</span>
+            <span className="text-slate-400 text-xs ml-2 hidden sm:inline">{activeTask.description}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button
@@ -829,14 +844,30 @@ Keep it concise - no more than 6-8 sentences total.`,
               className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors font-medium ${showTaskHint ? 'bg-amber-900/40 border-amber-700/50 text-amber-300' : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'}`}
             >
               <Lightbulb size={11} />
-              {showTaskHint ? 'Hide hint' : 'Hint'}
+              Hint
             </button>
-            <button
-              onClick={() => { setActiveTask(null); setShowTaskHint(false); }}
-              className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border text-slate-500 border-slate-700 hover:border-slate-600 hover:text-white transition-colors"
-            >
-              <X size={11} />
-            </button>
+            {onMarkDone && (
+              <button
+                onClick={onMarkDone}
+                disabled={isTaskDone}
+                className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded border font-semibold transition-colors ${
+                  isTaskDone
+                    ? 'text-emerald-400 border-emerald-700/50 bg-emerald-900/30 cursor-default'
+                    : 'text-emerald-300 border-emerald-700/60 bg-emerald-900/40 hover:bg-emerald-800/60'
+                }`}
+              >
+                <CheckCircle2 size={11} />
+                {isTaskDone ? 'Done!' : 'Mark as Done'}
+              </button>
+            )}
+            {!onMarkDone && (
+              <button
+                onClick={() => { setActiveTask(null); setShowTaskHint(false); }}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border text-slate-500 border-slate-700 hover:border-slate-600 hover:text-white transition-colors"
+              >
+                <X size={11} />
+              </button>
+            )}
           </div>
           {showTaskHint && (
             <div className="w-full mt-1 flex items-start gap-2 bg-amber-950/30 border border-amber-700/40 rounded-lg px-3 py-2">

@@ -1,25 +1,23 @@
 import { useState, useEffect } from 'react';
-import { curriculum, Task, Module } from './curriculum';
+import { curriculum, Task } from './curriculum';
 import {
-  ArrowLeft,
   CheckCircle2,
   Circle,
   Play,
   Lightbulb,
   ChevronDown,
   ChevronRight,
-  Clock,
   Zap,
   BookOpen,
   Trophy,
-  Turtle,
-  X,
 } from 'lucide-react';
 
 interface ModulePageProps {
   moduleId: string;
-  onBack: () => void;
+  onBack?: () => void;
   onStartTask: (task: Task) => void;
+  completedKeys?: Record<string, boolean>;
+  activeTaskId?: string | null;
 }
 
 const colorMap: Record<string, {
@@ -149,29 +147,27 @@ const colorMap: Record<string, {
   },
 };
 
-const difficultyColors: Record<string, string> = {
-  Beginner: 'text-emerald-400 bg-emerald-900/40 border-emerald-700/50',
-  Intermediate: 'text-amber-400 bg-amber-900/40 border-amber-700/50',
-  Advanced: 'text-red-400 bg-red-900/40 border-red-700/50',
-};
-
-function getCompletedTasks(): Record<string, boolean> {
-  return JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
-}
-
-export default function ModulePage({ moduleId, onBack, onStartTask }: ModulePageProps) {
-  const [expandedTask, setExpandedTask] = useState<string | null>(null);
+export default function ModulePage({ moduleId, onStartTask, completedKeys = {}, activeTaskId = null }: ModulePageProps) {
+  const [expandedTask, setExpandedTask] = useState<string | null>(activeTaskId);
   const [shownHints, setShownHints] = useState<Record<string, boolean>>({});
-  const [, forceUpdate] = useState(0);
+  const [localKeys, setLocalKeys] = useState<Record<string, boolean>>(completedKeys);
 
   const module = curriculum.find(m => m.id === moduleId);
   const colors = module ? (colorMap[module.color] || colorMap.emerald) : colorMap.emerald;
 
   useEffect(() => {
-    const handler = () => forceUpdate(n => n + 1);
+    setLocalKeys(completedKeys);
+  }, [completedKeys]);
+
+  useEffect(() => {
+    const handler = () => setLocalKeys(JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}'));
     window.addEventListener('pycode_progress_update', handler);
     return () => window.removeEventListener('pycode_progress_update', handler);
   }, []);
+
+  useEffect(() => {
+    if (activeTaskId) setExpandedTask(activeTaskId);
+  }, [activeTaskId]);
 
   if (!module) {
     return (
@@ -181,57 +177,35 @@ export default function ModulePage({ moduleId, onBack, onStartTask }: ModulePage
     );
   }
 
-  const completed = getCompletedTasks();
-  const done = module.tasks.filter((_, i) => completed[`${module.id}-${i}`]).length;
+  const done = module.tasks.filter((_, i) => localKeys[`${module.id}-${i}`]).length;
   const pct = Math.round((done / module.tasks.length) * 100);
 
   const DiffIcon = module.difficulty === 'Beginner' ? Zap : module.difficulty === 'Intermediate' ? BookOpen : Trophy;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {/* Header */}
-      <div className={`bg-gradient-to-b ${colors.header} border-b border-slate-800`}>
-        <div className="max-w-3xl mx-auto px-6 py-7">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm mb-5 transition-colors group"
-          >
-            <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
-            All Modules
-          </button>
-
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <div className="text-xs text-slate-500 font-medium mb-1">Module {module.number}</div>
-              <h1 className="text-2xl font-bold text-white mb-2">{module.title}</h1>
-              <p className="text-slate-400 text-sm max-w-lg">{module.description}</p>
-              <div className="flex items-center gap-2 mt-3 flex-wrap">
-                <span className={`flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full border ${difficultyColors[module.difficulty]}`}>
-                  <DiffIcon size={9} />
-                  {module.difficulty}
-                </span>
-                <span className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-800/60 px-2.5 py-1 rounded-full border border-slate-700/40">
-                  <Clock size={9} />
-                  {module.estimatedTime}
-                </span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-white">{done}<span className="text-slate-500 text-base font-normal">/{module.tasks.length}</span></div>
-              <div className="text-xs text-slate-500 mb-2">tasks done</div>
-              <div className="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className={`h-full ${colors.progressBar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
-              </div>
-            </div>
+    <div className="text-white">
+      {/* Compact header for sidebar */}
+      <div className={`bg-gradient-to-b ${colors.header} border-b border-slate-800 px-4 py-4`}>
+        <div className="flex items-center gap-2 mb-1">
+          <DiffIcon size={12} className={colors.dot.replace('bg-', 'text-')} />
+          <span className="text-xs text-slate-500 font-medium">Module {module.number}</span>
+        </div>
+        <div className="text-base font-bold text-white mb-1">{module.title}</div>
+        <p className="text-xs text-slate-400 leading-relaxed mb-3 line-clamp-2">{module.description}</p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className={`h-full ${colors.progressBar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
           </div>
+          <span className="text-[10px] text-slate-500 shrink-0">{done}/{module.tasks.length} done</span>
         </div>
       </div>
 
       {/* Tasks */}
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-3">
+      <div className="px-3 py-4 space-y-2">
         {module.tasks.map((task, index) => {
           const taskKey = `${module.id}-${index}`;
-          const isDone = !!completed[taskKey];
+          const isDone = !!localKeys[taskKey];
+          const isActive = activeTaskId === task.id;
           const isExpanded = expandedTask === task.id;
           const hintShown = !!shownHints[task.id];
 
@@ -241,6 +215,7 @@ export default function ModulePage({ moduleId, onBack, onStartTask }: ModulePage
               task={task}
               index={index}
               isDone={isDone}
+              isActive={isActive}
               isExpanded={isExpanded}
               hintShown={hintShown}
               colors={colors}
@@ -259,80 +234,82 @@ interface TaskCardProps {
   task: Task;
   index: number;
   isDone: boolean;
+  isActive: boolean;
   isExpanded: boolean;
   hintShown: boolean;
-  colors: ReturnType<typeof Object.values<typeof colorMap>[0]>;
+  colors: { header: string; badge: string; activeBorder: string; activeTitle: string; hintBg: string; hintBorder: string; hintText: string; progressBar: string; startBtn: string; dot: string };
   onToggle: () => void;
   onToggleHint: () => void;
   onStart: () => void;
 }
 
-function TaskCard({ task, index, isDone, isExpanded, hintShown, colors, onToggle, onToggleHint, onStart }: TaskCardProps) {
+function TaskCard({ task, index, isDone, isActive, isExpanded, hintShown, colors, onToggle, onToggleHint, onStart }: TaskCardProps) {
   return (
-    <div className={`rounded-xl border bg-slate-900/60 transition-all ${isExpanded ? colors.activeBorder : 'border-slate-800 hover:border-slate-700'}`}>
-      {/* Card header */}
+    <div className={`rounded-lg border transition-all ${
+      isActive
+        ? `${colors.activeBorder} bg-slate-800/80 ring-1 ring-inset ${colors.activeBorder}`
+        : isExpanded
+          ? `${colors.activeBorder} bg-slate-900/60`
+          : 'border-slate-800 hover:border-slate-700 bg-slate-900/40'
+    }`}>
       <button
-        className="w-full flex items-center gap-3 p-4 text-left"
+        className="w-full flex items-center gap-2.5 p-3 text-left"
         onClick={onToggle}
       >
         <div className="shrink-0">
           {isDone
-            ? <CheckCircle2 size={18} className="text-emerald-400" />
-            : <Circle size={18} className="text-slate-600" />
+            ? <CheckCircle2 size={15} className="text-emerald-400" />
+            : isActive
+              ? <div className="w-3.5 h-3.5 rounded-full border-2 border-sky-400 animate-pulse" />
+              : <Circle size={15} className="text-slate-600" />
           }
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500 font-medium">Task {index + 1}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-slate-500 font-medium">Task {index + 1}</span>
             {task.usesTurtle && (
-              <span className="text-[10px] bg-teal-900/40 text-teal-400 border border-teal-700/40 px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                <span>🐢</span> Turtle
-              </span>
+              <span className="text-[9px] bg-teal-900/40 text-teal-400 border border-teal-700/40 px-1 py-px rounded-full">Turtle</span>
             )}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${difficultyColors[task.difficulty]}`}>
-              {task.difficulty}
-            </span>
           </div>
-          <div className={`font-semibold text-sm mt-0.5 ${isExpanded ? colors.activeTitle : 'text-white'}`}>
+          <div className={`font-semibold text-xs mt-0.5 truncate ${isActive ? colors.activeTitle : isExpanded ? colors.activeTitle : 'text-white'}`}>
             {task.title}
           </div>
         </div>
 
         <div className="shrink-0 text-slate-500">
-          {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </div>
       </button>
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-slate-800 pt-4">
-          <p className="text-sm text-slate-300 leading-relaxed">{task.description}</p>
+        <div className="px-3 pb-3 space-y-3 border-t border-slate-800 pt-3">
+          <p className="text-xs text-slate-300 leading-relaxed">{task.description}</p>
 
-          <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 p-3">
-            <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-1">Expected Output</div>
-            <p className="text-xs text-slate-400 italic">{task.expectedOutput}</p>
+          <div className="rounded border border-slate-700/50 bg-slate-800/50 p-2">
+            <div className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mb-1">Expected Output</div>
+            <p className="text-[10px] text-slate-400 italic">{task.expectedOutput}</p>
           </div>
 
-          {/* Hint toggle */}
           <div>
             <button
               onClick={onToggleHint}
-              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
+              className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded border transition-all ${
                 hintShown
                   ? `${colors.hintBg} ${colors.hintBorder} ${colors.hintText}`
                   : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'
               }`}
             >
-              <Lightbulb size={12} />
+              <Lightbulb size={11} />
               {hintShown ? 'Hide Hint' : 'Show Me How'}
             </button>
 
             {hintShown && (
-              <div className={`mt-2 rounded-lg border ${colors.hintBorder} ${colors.hintBg} p-3`}>
-                <div className="flex items-start gap-2">
-                  <Lightbulb size={13} className="mt-0.5 shrink-0 text-amber-400" />
-                  <p className={`text-xs leading-relaxed ${colors.hintText}`}>{task.hint}</p>
+              <div className={`mt-2 rounded border ${colors.hintBorder} ${colors.hintBg} p-2`}>
+                <div className="flex items-start gap-1.5">
+                  <Lightbulb size={11} className="mt-0.5 shrink-0 text-amber-400" />
+                  <p className={`text-[11px] leading-relaxed ${colors.hintText}`}>{task.hint}</p>
                 </div>
               </div>
             )}
@@ -340,10 +317,10 @@ function TaskCard({ task, index, isDone, isExpanded, hintShown, colors, onToggle
 
           <button
             onClick={onStart}
-            className={`flex items-center gap-2 px-4 py-2 ${colors.startBtn} text-white text-sm font-semibold rounded-lg transition-colors`}
+            className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 ${colors.startBtn} text-white text-xs font-semibold rounded transition-colors`}
           >
-            <Play size={13} fill="currentColor" />
-            Start Task in Editor
+            <Play size={11} fill="currentColor" />
+            {isActive ? 'Reload Starter Code' : 'Start Task'}
           </button>
         </div>
       )}
