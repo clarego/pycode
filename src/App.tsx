@@ -8,10 +8,13 @@ import SessionReview from './components/SessionReview';
 import AdminDashboard from './components/admin/AdminDashboard';
 import TaskPage from './components/tasks/TaskPage';
 import LoginModal from './components/auth/LoginModal';
+import ModulesView from './components/modules/ModulesView';
+import { Task } from './components/modules/curriculum';
 
 type Route =
   | { type: 'home' }
   | { type: 'playground' }
+  | { type: 'modules' }
   | { type: 'shared'; code: string }
   | { type: 'embed'; code: string }
   | { type: 'review'; code: string }
@@ -34,6 +37,7 @@ function getRoute(): Route {
   if (taskMatch) return { type: 'task', code: taskMatch[1] };
 
   if (path === '/admin') return { type: 'admin' };
+  if (path === '/modules') return { type: 'modules' };
   if (path === '/playground') return { type: 'playground' };
 
   return { type: 'home' };
@@ -43,6 +47,7 @@ function AppContent() {
   const [route, setRoute] = useState<Route>(getRoute);
   const { user, apiKey, loading, initialized, logout } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
+  const [pendingTask, setPendingTask] = useState<Task | null>(null);
 
   useEffect(() => {
     function handlePopState() {
@@ -76,6 +81,32 @@ function AppContent() {
     return <TaskPage shareCode={route.code} />;
   }
 
+  if (route.type === 'modules') {
+    return (
+      <div className="h-screen overflow-y-auto bg-slate-950">
+        <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between">
+          <a href="/" className="flex items-center gap-2 group">
+            <img src="/pycode_logo.png" alt="PyCode" className="h-8 w-auto" />
+            <span className="text-sm font-semibold text-white hidden sm:inline">PyCode</span>
+          </a>
+          <a
+            href="/playground"
+            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors font-medium"
+          >
+            Open Editor
+          </a>
+        </div>
+        <ModulesView
+          onStartTask={(task) => {
+            setPendingTask(task);
+            window.history.pushState({}, '', '/playground');
+            setRoute({ type: 'playground' });
+          }}
+        />
+      </div>
+    );
+  }
+
   if (route.type !== 'playground' && (route.type === 'admin' || (route.type === 'home' && user?.isAdmin))) {
     if (user?.isAdmin) {
       return <AdminDashboard />;
@@ -93,6 +124,8 @@ function AppContent() {
           apiKey={apiKey}
           logout={logout}
           onShowLogin={() => setShowLogin(true)}
+          initialTask={pendingTask}
+          onTaskConsumed={() => setPendingTask(null)}
         />
       </div>
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}

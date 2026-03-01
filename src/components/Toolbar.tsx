@@ -23,6 +23,7 @@ import {
   Sun,
   Moon,
   Terminal,
+  GraduationCap,
 } from 'lucide-react';
 import { templates } from '../lib/templates';
 import { useTheme } from './ThemeContext';
@@ -247,6 +248,15 @@ export default function Toolbar({
             <span className="hidden sm:inline">{hasDesign ? 'Edit Design' : 'GUI Designer'}</span>
             {hasDesign && <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />}
           </button>
+
+          <a
+            href="/modules"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors border text-sky-300 hover:text-sky-100 hover:bg-sky-900/40 border-sky-700/50"
+            title="Learning Modules"
+          >
+            <GraduationCap size={13} />
+            <span className="hidden sm:inline">Modules</span>
+          </a>
         </div>
 
         <div className="flex items-center gap-1.5">

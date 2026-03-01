@@ -16,10 +16,12 @@ import type { FormState } from './gui-designer/types';
 import { usePyodide } from '../hooks/usePyodide';
 import { useSessionRecorder } from '../hooks/useSessionRecorder';
 import { serializeNotebook, createEmptyNotebook } from '../lib/notebook';
-import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square } from 'lucide-react';
+import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationCap, Lightbulb } from 'lucide-react';
 
 import { saveSnippet } from '../lib/snippets';
 import { saveSession } from '../lib/sessions';
+import type { Task } from './modules/curriculum';
+import { curriculum } from './modules/curriculum';
 
 const DEFAULT_FORM: FormState = {
   title: 'My Application',
@@ -47,6 +49,8 @@ interface PythonPlaygroundProps {
   apiKey?: string;
   logout?: () => void;
   onShowLogin?: () => void;
+  initialTask?: Task | null;
+  onTaskConsumed?: () => void;
 }
 
 export default function PythonPlayground({
@@ -62,6 +66,8 @@ export default function PythonPlayground({
   apiKey = '',
   logout,
   onShowLogin,
+  initialTask,
+  onTaskConsumed,
 }: PythonPlaygroundProps) {
   const [files, setFiles] = useState<Record<string, string>>(
     initialFiles || { 'main.py': DEFAULT_CODE }
@@ -83,6 +89,8 @@ export default function PythonPlayground({
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [showTaskHint, setShowTaskHint] = useState(false);
   const dragCounterRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<CodeEditorHandle>(null);
@@ -108,9 +116,34 @@ export default function PythonPlayground({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(() => {
+    if (initialTask) {
+      setFiles({ 'main.py': initialTask.starterCode });
+      setActiveFile('main.py');
+      setActiveTask(initialTask);
+      setShowTaskHint(false);
+      onTaskConsumed?.();
+    }
+  }, [initialTask]);
+
   const handleRun = useCallback(() => {
     runCode(files, activeFile);
-  }, [files, activeFile, runCode]);
+    if (activeTask) {
+      for (const mod of curriculum) {
+        const idx = mod.tasks.findIndex(t => t.id === activeTask.id);
+        if (idx !== -1) {
+          const key = `${mod.id}-${idx}`;
+          const existing = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
+          if (!existing[key]) {
+            existing[key] = true;
+            localStorage.setItem('pycode_completed_tasks', JSON.stringify(existing));
+            window.dispatchEvent(new Event('pycode_progress_update'));
+          }
+          break;
+        }
+      }
+    }
+  }, [files, activeFile, runCode, activeTask]);
 
   const handleFileChange = useCallback(
     (content: string) => {
@@ -779,6 +812,40 @@ Keep it concise - no more than 6-8 sentences total.`,
         onShowLogin={onShowLogin}
         apiKeyLoaded={!!apiKey}
       />
+
+      {activeTask && (
+        <div className="bg-slate-900 border-b border-sky-700/60 px-4 py-2.5 flex items-start gap-3 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0 mt-0.5">
+            <GraduationCap size={14} className="text-sky-400" />
+            <span className="text-xs text-sky-400 font-semibold">Task:</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-xs text-white font-medium">{activeTask.title}</span>
+            <span className="text-slate-400 text-xs ml-2">{activeTask.description}</span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setShowTaskHint(!showTaskHint)}
+              className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors font-medium ${showTaskHint ? 'bg-amber-900/40 border-amber-700/50 text-amber-300' : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'}`}
+            >
+              <Lightbulb size={11} />
+              {showTaskHint ? 'Hide hint' : 'Hint'}
+            </button>
+            <button
+              onClick={() => { setActiveTask(null); setShowTaskHint(false); }}
+              className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border text-slate-500 border-slate-700 hover:border-slate-600 hover:text-white transition-colors"
+            >
+              <X size={11} />
+            </button>
+          </div>
+          {showTaskHint && (
+            <div className="w-full mt-1 flex items-start gap-2 bg-amber-950/30 border border-amber-700/40 rounded-lg px-3 py-2">
+              <Lightbulb size={12} className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-200 leading-relaxed">{activeTask.hint}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 min-h-0">
         <ResizablePanel
