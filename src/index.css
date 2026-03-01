@@ -347,7 +347,10 @@ html.hacker body::after {
 html.hacker div[class*="bg-slate-800"],
 html.hacker div[class*="bg-slate-900"],
 html.hacker div[class*="bg-slate-700"],
-html.hacker div[class*="bg-slate-600"] {
+html.hacker div[class*="bg-slate-600"],
+html.hacker div[class*="bg-slate-50"],
+html.hacker div[class*="bg-slate-100"],
+html.hacker div[class*="bg-white"] {
   background-color: var(--hk-bg2) !important;
   border-color: var(--hk-border) !important;
 }
@@ -364,9 +367,12 @@ html.hacker [class*="text-white"] {
 }
 
 html.hacker [class*="text-slate-400"],
-html.hacker [class*="text-slate-500"] {
+html.hacker [class*="text-slate-500"],
+html.hacker [class*="text-slate-600"],
+html.hacker [class*="text-slate-700"],
+html.hacker [class*="text-slate-800"] {
   color: var(--hk-green-dim) !important;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 html.hacker button:not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-sky"]):not([class*="bg-teal"]):not([class*="bg-green"]) {
@@ -379,6 +385,37 @@ html.hacker button:hover:not([class*="bg-emerald"]):not([class*="bg-red"]):not([
   background-color: rgba(0, 255, 65, 0.1) !important;
   color: var(--hk-green) !important;
   text-shadow: 0 0 6px var(--hk-green);
+}
+
+html.hacker [class*="bg-slate-50"],
+html.hacker [class*="bg-slate-100"],
+html.hacker [class*="bg-white"] {
+  background-color: var(--hk-bg2) !important;
+}
+
+html.hacker [class*="hover:bg-slate-100"]:hover,
+html.hacker [class*="hover:bg-slate-50"]:hover {
+  background-color: rgba(0, 255, 65, 0.07) !important;
+}
+
+html.hacker [class*="bg-sky-50"],
+html.hacker [class*="bg-teal-50"] {
+  background-color: rgba(0, 255, 65, 0.12) !important;
+}
+
+html.hacker [class*="border-sky-500"],
+html.hacker [class*="border-teal-500"] {
+  border-color: var(--hk-green) !important;
+}
+
+html.hacker [class*="text-sky-700"],
+html.hacker [class*="text-teal-700"] {
+  color: var(--hk-green) !important;
+}
+
+html.hacker [class*="border-slate-200"],
+html.hacker [class*="border-slate-300"] {
+  border-color: var(--hk-border) !important;
 }
 
 html.hacker button[class*="bg-emerald"] {
@@ -433,11 +470,13 @@ html.hacker [class*="shadow"] {
 }
 
 html.hacker .cm-editor,
-html.hacker .cm-editor .cm-content,
-html.hacker .cm-editor .cm-line {
+html.hacker .cm-editor .cm-content {
   background-color: #000300 !important;
-  color: var(--hk-green) !important;
   caret-color: var(--hk-green) !important;
+}
+
+html.hacker .cm-editor .cm-line {
+  color: #7fffb0 !important;
 }
 
 html.hacker .cm-editor .cm-gutters {

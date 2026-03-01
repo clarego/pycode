@@ -14,6 +14,7 @@ import GuiDesigner from './gui-designer/GuiDesigner';
 import NotebookEditor from './notebook/NotebookEditor';
 import type { FormState } from './gui-designer/types';
 import { usePyodide } from '../hooks/usePyodide';
+import { useTheme } from './ThemeContext';
 import { useSessionRecorder } from '../hooks/useSessionRecorder';
 import { serializeNotebook, createEmptyNotebook } from '../lib/notebook';
 import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationCap, Lightbulb, CheckCircle2 } from 'lucide-react';
@@ -77,6 +78,7 @@ export default function PythonPlayground({
   praiseTaskId,
   isTaskDone = false,
 }: PythonPlaygroundProps) {
+  const { hackerMode } = useTheme();
   const [files, setFiles] = useState<Record<string, string>>(
     initialFiles || { 'main.py': DEFAULT_CODE }
   );
@@ -534,6 +536,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           onPaste={handlePaste}
           filename={activeFile}
           readOnly={isEmbed}
+          hackerMode={hackerMode}
         />
       )}
     </div>

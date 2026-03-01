@@ -6,9 +6,46 @@ import { python } from '@codemirror/lang-python';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { javascript } from '@codemirror/lang-javascript';
-import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, foldGutter, indentOnInput } from '@codemirror/language';
+import { syntaxHighlighting, defaultHighlightStyle, HighlightStyle, bracketMatching, foldGutter, indentOnInput } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { autocompletion, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+
+const hackerHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: '#00ff41', fontWeight: 'bold' },
+  { tag: tags.controlKeyword, color: '#00ff41', fontWeight: 'bold' },
+  { tag: tags.operatorKeyword, color: '#00ff41', fontWeight: 'bold' },
+  { tag: tags.definitionKeyword, color: '#00ff41', fontWeight: 'bold' },
+  { tag: tags.string, color: '#ffe066' },
+  { tag: tags.special(tags.string), color: '#ffe066' },
+  { tag: tags.number, color: '#ff9f43' },
+  { tag: tags.integer, color: '#ff9f43' },
+  { tag: tags.float, color: '#ff9f43' },
+  { tag: tags.bool, color: '#ff9f43' },
+  { tag: tags.comment, color: '#2ea844', fontStyle: 'italic' },
+  { tag: tags.lineComment, color: '#2ea844', fontStyle: 'italic' },
+  { tag: tags.blockComment, color: '#2ea844', fontStyle: 'italic' },
+  { tag: tags.function(tags.variableName), color: '#00e5ff' },
+  { tag: tags.function(tags.propertyName), color: '#00e5ff' },
+  { tag: tags.definition(tags.variableName), color: '#b8ffcf' },
+  { tag: tags.variableName, color: '#b8ffcf' },
+  { tag: tags.propertyName, color: '#b8ffcf' },
+  { tag: tags.className, color: '#00e5ff', fontWeight: 'bold' },
+  { tag: tags.typeName, color: '#00e5ff' },
+  { tag: tags.operator, color: '#00ff41' },
+  { tag: tags.punctuation, color: '#7fffb0' },
+  { tag: tags.bracket, color: '#7fffb0' },
+  { tag: tags.paren, color: '#7fffb0' },
+  { tag: tags.brace, color: '#7fffb0' },
+  { tag: tags.name, color: '#b8ffcf' },
+  { tag: tags.self, color: '#00e5ff', fontStyle: 'italic' },
+  { tag: tags.null, color: '#ff9f43' },
+  { tag: tags.atom, color: '#ff9f43' },
+  { tag: tags.escape, color: '#ff6b6b' },
+  { tag: tags.modifier, color: '#00ff41' },
+  { tag: tags.meta, color: '#2ea844' },
+  { tag: tags.derefOperator, color: '#00ff41' },
+]);
 
 interface CodeEditorProps {
   value: string;
@@ -17,6 +54,7 @@ interface CodeEditorProps {
   onPaste?: () => void;
   filename?: string;
   readOnly?: boolean;
+  hackerMode?: boolean;
 }
 
 function getLanguageExtension(filename?: string) {
@@ -88,7 +126,7 @@ export interface CodeEditorHandle {
   redo: () => void;
 }
 
-const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor({ value, onChange, onRun, onPaste, filename, readOnly = false }, ref) {
+const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEditor({ value, onChange, onRun, onPaste, filename, readOnly = false, hackerMode = false }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -124,7 +162,9 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEd
         closeBrackets(),
         autocompletion(),
         highlightSelectionMatches(),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        hackerMode
+          ? syntaxHighlighting(hackerHighlightStyle)
+          : syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         langCompartment.current.of(getLanguageExtension(filename)),
         editorTheme,
         EditorView.lineWrapping,
@@ -163,7 +203,7 @@ const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function CodeEd
 
       return EditorState.create({ doc, extensions });
     },
-    [readOnly]
+    [readOnly, hackerMode]
   );
 
   useEffect(() => {
