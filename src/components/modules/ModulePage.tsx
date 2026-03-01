@@ -11,6 +11,7 @@ import {
   BookOpen,
   Trophy,
 } from 'lucide-react';
+import TaskOutputPreview from './TaskOutputPreview';
 
 interface ModulePageProps {
   moduleId: string;
@@ -288,8 +289,15 @@ function TaskCard({ task, index, isDone, isActive, isExpanded, hintShown, colors
           <p className="text-xs text-slate-300 leading-relaxed">{task.description}</p>
 
           <div className="rounded border border-slate-700/50 bg-slate-800/50 p-2">
-            <div className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mb-1">Expected Output</div>
-            <p className="text-[10px] text-slate-400 italic">{task.expectedOutput}</p>
+            <div className="text-[9px] text-slate-500 font-medium uppercase tracking-wider mb-2">Expected Output</div>
+            {task.solutionCode ? (
+              <TaskOutputPreview
+                solutionCode={task.solutionCode}
+                usesTurtle={task.usesTurtle}
+              />
+            ) : (
+              <p className="text-[10px] text-slate-400 italic">{task.expectedOutput}</p>
+            )}
           </div>
 
           <div>

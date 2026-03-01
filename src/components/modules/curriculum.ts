@@ -4,6 +4,7 @@ export interface Task {
   description: string;
   starterCode: string;
   expectedOutput: string;
+  solutionCode?: string;
   hint: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   usesTurtle?: boolean;
@@ -43,6 +44,13 @@ t.speed(3)
 # Hint: forward(100) and right(90), repeated 4 times
 `,
         expectedOutput: 'A square drawn on screen using turtle graphics.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+for i in range(4):
+    t.forward(100)
+    t.right(90)
+`,
         hint: 'Use a sequence of t.forward(100) and t.right(90) four times in a row — or think about how you could use a for loop with range(4).',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -62,6 +70,15 @@ colours = ["red", "blue", "green"]
 # Use pencolor() before each side
 `,
         expectedOutput: 'A triangle with red, blue, and green sides.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+colours = ["red", "blue", "green"]
+for i in range(3):
+    t.pencolor(colours[i])
+    t.forward(150)
+    t.right(120)
+`,
         hint: 'Change t.pencolor("red") before drawing each side. The exterior angle of a triangle is 120 degrees.',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -86,6 +103,18 @@ t.pendown()
 
 `,
         expectedOutput: 'Two squares drawn at different positions on the canvas.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+def draw_square():
+    for _ in range(4):
+        t.forward(80)
+        t.right(90)
+t.penup(); t.goto(-150, 0); t.pendown()
+draw_square()
+t.penup(); t.goto(50, 0); t.pendown()
+draw_square()
+`,
         hint: 'After drawing the first square, use t.penup(), t.goto(50, 0), then t.pendown() before drawing the second square.',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -109,6 +138,21 @@ t.end_fill()
 
 `,
         expectedOutput: 'A yellow filled circle and a blue filled square.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+t.fillcolor("yellow")
+t.begin_fill()
+t.circle(60)
+t.end_fill()
+t.penup(); t.goto(120, -60); t.pendown()
+t.fillcolor("blue")
+t.begin_fill()
+for _ in range(4):
+    t.forward(80)
+    t.right(90)
+t.end_fill()
+`,
         hint: 'Wrap any drawing code between t.begin_fill() and t.end_fill(). Make sure to set t.fillcolor() before calling begin_fill().',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -129,6 +173,15 @@ t.pensize(2)
 # Repeat 5 times
 `,
         expectedOutput: 'A 5-pointed gold star drawn on screen.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+t.pencolor("gold")
+t.pensize(2)
+for _ in range(5):
+    t.forward(150)
+    t.right(144)
+`,
         hint: 'A star has 5 points. Each step is: forward(150), then right(144). Repeat exactly 5 times.',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -160,6 +213,15 @@ while counter < 4:
     pass
 `,
         expectedOutput: 'A square drawn using a while loop.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+counter = 0
+while counter < 4:
+    t.forward(100)
+    t.right(90)
+    counter += 1
+`,
         hint: 'Inside the loop: t.forward(100), t.right(90), counter += 1. The loop runs while counter < 4.',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -182,6 +244,17 @@ while step <= 100:
     step += 10  # Each step gets 10 units bigger
 `,
         expectedOutput: 'A staircase pattern where each step increases in size.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+step = 10
+while step <= 100:
+    t.forward(step)
+    t.right(90)
+    t.forward(step)
+    t.left(90)
+    step += 10
+`,
         hint: 'Each "step" goes forward then down. Increase the step size by 10 each time through the loop.',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -203,6 +276,16 @@ while counter > 0:
     counter -= 2  # Shrink by 2 each time
 `,
         expectedOutput: 'A shrinking inward spiral.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+t.pencolor("teal")
+counter = 100
+while counter > 0:
+    t.forward(counter)
+    t.right(91)
+    counter -= 2
+`,
         hint: 'Start with counter = 100. Each loop: forward(counter), right(91), then counter -= 2. The spiral shrinks to the centre.',
         difficulty: 'Intermediate',
         usesTurtle: true,
@@ -224,6 +307,16 @@ while counter < 360:
     counter += 1
 `,
         expectedOutput: 'A beautiful star pattern made from overlapping lines.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+t.pencolor("orange")
+counter = 0
+while counter < 360:
+    t.forward(200)
+    t.right(170)
+    counter += 1
+`,
         hint: 'The key is turning 170 degrees — not 360/5. This creates a different angle that produces a star burst pattern.',
         difficulty: 'Intermediate',
         usesTurtle: true,
@@ -276,6 +369,13 @@ for i in range(3):
     t.right(120)
 `,
         expectedOutput: 'A triangle drawn using a for loop.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+for i in range(3):
+    t.forward(150)
+    t.right(120)
+`,
         hint: 'range(3) gives you 0, 1, 2 — three iterations. forward(150) then right(120) draws each side of an equilateral triangle.',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -322,6 +422,19 @@ for i in range(5):
     t.pendown()
 `,
         expectedOutput: 'A bullseye with alternating red and white circles.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+colours = ["red", "white", "red", "white", "red"]
+for i in range(5):
+    t.fillcolor(colours[i])
+    t.begin_fill()
+    t.circle(20 + i * 20)
+    t.end_fill()
+    t.penup()
+    t.goto(0, -(20 + i * 20))
+    t.pendown()
+`,
         hint: 'Draw the circles from smallest to largest. Reposition the turtle to the bottom of each circle before drawing using goto(0, -radius).',
         difficulty: 'Intermediate',
         usesTurtle: true,
@@ -345,6 +458,17 @@ for i in range(len(colours)):
     t.right(360 / len(colours))
 `,
         expectedOutput: 'Lines radiating from the centre in different colours, forming a colour wheel.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+colours = ["red", "orange", "yellow", "green", "blue", "cyan", "magenta", "pink", "lime", "navy", "purple", "brown"]
+for i in range(len(colours)):
+    t.pencolor(colours[i])
+    t.pensize(3)
+    t.forward(150)
+    t.backward(150)
+    t.right(360 / len(colours))
+`,
         hint: 'Each "spoke" goes forward 150, then back 150 to return to centre. Turn by 360 / number_of_colours to space them evenly.',
         difficulty: 'Beginner',
         usesTurtle: true,
@@ -370,6 +494,17 @@ for x in range(-10, 11):
 turtle.done()
 `,
         expectedOutput: 'A parabola (U-shape) plotted on screen using turtle dots.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+t.penup()
+scale = 5
+for x in range(-10, 11):
+    y = x ** 2
+    t.goto(x * scale, -y * scale + 200)
+    t.pendown()
+    t.dot(5, "blue")
+`,
         hint: 'Scale x and y so they fit nicely on screen. Negate y (use -y) so the parabola opens upward. Shift up by adding 200 to the y coordinate.',
         difficulty: 'Advanced',
         usesTurtle: true,
@@ -642,6 +777,14 @@ print(f"Using sum():  {sum(numbers)}")
 print(f"Match: {total == sum(numbers)}")
 `,
         expectedOutput: 'The sum calculated manually and verified with sum().',
+        solutionCode: `numbers = [12, 45, 7, 23, 89, 4, 56, 31]
+total = 0
+for num in numbers:
+    total += num
+print(f"Manual total: {total}")
+print(f"Using sum():  {sum(numbers)}")
+print(f"Match: {total == sum(numbers)}")
+`,
         hint: 'Start with total = 0. In the loop, add each number to total using total += num. Compare with sum(numbers) at the end.',
         difficulty: 'Beginner',
       },
@@ -662,6 +805,15 @@ print(f"Maximum: {largest}")
 print(f"Verify:  {max(numbers)}")
 `,
         expectedOutput: 'The maximum value found manually and verified with max().',
+        solutionCode: `numbers = [34, 12, 78, 5, 92, 41, 67, 23]
+largest = numbers[0]
+for num in numbers:
+    if num > largest:
+        largest = num
+print(f"List:    {numbers}")
+print(f"Maximum: {largest}")
+print(f"Verify:  {max(numbers)}")
+`,
         hint: 'Start with largest = numbers[0]. Loop through each num. If num > largest, update largest = num. At the end, largest holds the maximum.',
         difficulty: 'Intermediate',
       },
@@ -680,6 +832,16 @@ print(f"Verify:  {max(numbers)}")
         print(i)
 `,
         expectedOutput: '1 to 100 with Fizz, Buzz, and FizzBuzz substitutions.',
+        solutionCode: `for i in range(1, 101):
+    if i % 3 == 0 and i % 5 == 0:
+        print("FizzBuzz")
+    elif i % 3 == 0:
+        print("Fizz")
+    elif i % 5 == 0:
+        print("Buzz")
+    else:
+        print(i)
+`,
         hint: 'Check FizzBuzz FIRST (divisible by both 3 and 5), then Fizz (only 3), then Buzz (only 5). Use the modulo operator %.',
         difficulty: 'Intermediate',
       },
@@ -703,6 +865,19 @@ print(primes)
 print(f"Total primes: {len(primes)}")
 `,
         expectedOutput: 'All prime numbers from 1 to 100.',
+        solutionCode: `print("Prime numbers from 1 to 100:")
+primes = []
+for n in range(2, 101):
+    is_prime = True
+    for divisor in range(2, n):
+        if n % divisor == 0:
+            is_prime = False
+            break
+    if is_prime:
+        primes.append(n)
+print(primes)
+print(f"Total primes: {len(primes)}")
+`,
         hint: 'For each number n, check if any number from 2 to n-1 divides it evenly. If none do, it is prime. The break statement exits the inner loop early when a divisor is found.',
         difficulty: 'Advanced',
       },
@@ -732,6 +907,12 @@ print(greet("Year 10"))
 # Now modify it to also accept an age parameter: greet(name, age)
 `,
         expectedOutput: 'Greeting messages for each name.',
+        solutionCode: `def greet(name):
+    return f"Hello, {name}! Welcome to Python."
+print(greet("Alice"))
+print(greet("Bob"))
+print(greet("Year 10"))
+`,
         hint: 'A function uses def keyword, takes parameters in brackets, and uses return to send a value back. Call it with greet("Alice") to use it.',
         difficulty: 'Beginner',
       },
@@ -750,6 +931,13 @@ for r in [1, 5, 10, 7.5]:
     print(f"Radius {r}: Area = {area:.2f}")
 `,
         expectedOutput: 'Area of circles for each radius tested.',
+        solutionCode: `import math
+def area_circle(radius):
+    return math.pi * radius ** 2
+for r in [1, 5, 10, 7.5]:
+    area = area_circle(r)
+    print(f"Radius {r}: Area = {area:.2f}")
+`,
         hint: 'Use math.pi for an accurate value of π. The formula is π × r². Python uses ** for powers, so r**2 means r squared.',
         difficulty: 'Beginner',
       },
@@ -770,6 +958,16 @@ for num in [1, 2, 3, 4, 17, 20, 97, 100]:
     print(f"{num}: {'Prime' if is_prime(num) else 'Not prime'}")
 `,
         expectedOutput: 'Prime or not-prime verdict for each tested number.',
+        solutionCode: `def is_prime(n):
+    if n < 2:
+        return False
+    for i in range(2, int(n**0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
+for num in [1, 2, 3, 4, 17, 20, 97, 100]:
+    print(f"{num}: {'Prime' if is_prime(num) else 'Not prime'}")
+`,
         hint: 'You only need to check divisors up to the square root of n (int(n**0.5) + 1). This is much faster than checking all numbers up to n.',
         difficulty: 'Intermediate',
       },
@@ -799,6 +997,21 @@ t.penup(); t.goto(120, 0); t.pendown()
 draw_polygon(8, 50)   # Octagon
 `,
         expectedOutput: 'Multiple polygons drawn on screen using the reusable function.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+def draw_polygon(sides, length):
+    angle = 360 / sides
+    for i in range(sides):
+        t.forward(length)
+        t.right(angle)
+t.penup(); t.goto(-200, 0); t.pendown()
+draw_polygon(3, 80)
+t.penup(); t.goto(-50, 0); t.pendown()
+draw_polygon(5, 70)
+t.penup(); t.goto(120, 0); t.pendown()
+draw_polygon(8, 50)
+`,
         hint: 'Define the function once with def draw_polygon(sides, length). Then call it multiple times with different arguments — that is the power of functions!',
         difficulty: 'Intermediate',
         usesTurtle: true,
@@ -831,6 +1044,23 @@ for n in range(1, 8):
     print(f"{n}! = {factorial(n)}")
 `,
         expectedOutput: 'Solutions to linear equations and factorial values.',
+        solutionCode: `def solve_linear(a, b):
+    if a == 0:
+        return None
+    return -b / a
+def factorial(n):
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result
+print("Linear equations:")
+print(f"2x + 6 = 0  =>  x = {solve_linear(2, 6)}")
+print(f"3x - 9 = 0  =>  x = {solve_linear(3, -9)}")
+print(f"5x + 0 = 0  =>  x = {solve_linear(5, 0)}")
+print("\\nFactorials:")
+for n in range(1, 8):
+    print(f"{n}! = {factorial(n)}")
+`,
         hint: 'For solve_linear: rearrange ax + b = 0 to get x = -b/a. For factorial: start result = 1, then multiply by each number from 2 to n.',
         difficulty: 'Advanced',
       },
@@ -1003,6 +1233,13 @@ students.append("Your Name")
 print(f"\\nTotal students: {len(students)}")
 `,
         expectedOutput: 'Numbered list of student names.',
+        solutionCode: `students = ["Alice", "Bob", "Charlie", "Diana", "Eve"]
+print("Class List:")
+for i, name in enumerate(students, 1):
+    print(f"  {i}. {name}")
+students.append("New Student")
+print(f"\\nTotal students: {len(students)}")
+`,
         hint: 'enumerate(students, 1) gives you pairs of (1, "Alice"), (2, "Bob"), etc. Unpack with for i, name in enumerate(...).',
         difficulty: 'Beginner',
       },
@@ -1101,6 +1338,16 @@ print(f"\\nEven Fibonacci numbers: {even_fibs}")
 print(f"Count: {len(even_fibs)}")
 `,
         expectedOutput: 'The first 20 Fibonacci numbers and those that are even.',
+        solutionCode: `fib = [0, 1]
+for i in range(18):
+    fib.append(fib[-1] + fib[-2])
+print("First 20 Fibonacci numbers:")
+for i, n in enumerate(fib, 1):
+    print(f"  F({i}) = {n}")
+even_fibs = [n for n in fib if n % 2 == 0]
+print(f"\\nEven Fibonacci numbers: {even_fibs}")
+print(f"Count: {len(even_fibs)}")
+`,
         hint: 'Start with fib = [0, 1]. Each new number is fib[-1] + fib[-2] (the last two). A list comprehension [n for n in fib if n % 2 == 0] filters the even ones.',
         difficulty: 'Advanced',
       },
@@ -1136,6 +1383,17 @@ for length in fib:
 turtle.done()
 `,
         expectedOutput: 'A Fibonacci spiral drawn in gold.',
+        solutionCode: `import turtle
+t = turtle.Turtle()
+t.speed(0)
+t.pencolor("gold")
+t.pensize(2)
+fib = [1, 1]
+for i in range(8):
+    fib.append(fib[-1] + fib[-2])
+for length in fib:
+    t.circle(length * 5, 90)
+`,
         hint: 'Use t.circle(radius, 90) to draw a quarter-circle arc. Each arc radius comes from the Fibonacci sequence multiplied by a scale factor.',
         difficulty: 'Advanced',
         usesTurtle: true,
