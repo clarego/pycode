@@ -18,6 +18,19 @@ const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+
+  const handleSelectUser = (username: string) => {
+    setSelectedUser(username);
+    setActiveTab('progress');
+  };
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    if (tab !== 'progress') {
+      setSelectedUser(null);
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -65,7 +78,7 @@ export default function AdminDashboard() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                     activeTab === tab.id
                       ? 'bg-slate-800 text-white'
@@ -82,10 +95,17 @@ export default function AdminDashboard() {
 
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-5xl mx-auto">
-            {activeTab === 'users' && <UserManagement />}
+            {activeTab === 'users' && (
+              <UserManagement onSelectUser={handleSelectUser} />
+            )}
             {activeTab === 'tasks' && <TaskManager />}
             {activeTab === 'submissions' && <SubmissionViewer />}
-            {activeTab === 'progress' && <ModuleProgressViewer />}
+            {activeTab === 'progress' && (
+              <ModuleProgressViewer
+                initialUser={selectedUser}
+                onClearUser={() => setSelectedUser(null)}
+              />
+            )}
           </div>
         </main>
       </div>

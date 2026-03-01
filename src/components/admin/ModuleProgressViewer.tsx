@@ -122,10 +122,15 @@ function ResetConfirmModal({ username, moduleName, onConfirm, onCancel }: ResetC
   );
 }
 
-export default function ModuleProgressViewer() {
+interface ModuleProgressViewerProps {
+  initialUser?: string | null;
+  onClearUser?: () => void;
+}
+
+export default function ModuleProgressViewer({ initialUser, onClearUser }: ModuleProgressViewerProps = {}) {
   const [summaries, setSummaries] = useState<UserSummary[]>([]);
   const [allRows, setAllRows] = useState<ProgressRow[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(initialUser ?? null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'students' | 'activity'>('students');
@@ -152,6 +157,14 @@ export default function ModuleProgressViewer() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (initialUser) setExpanded(initialUser);
+  }, [initialUser]);
+
+  const visibleSummaries = initialUser
+    ? summaries.filter(s => s.username === initialUser)
+    : summaries;
 
   const getUserRows = (username: string) => allRows.filter(r => r.username === username);
 
@@ -191,10 +204,28 @@ export default function ModuleProgressViewer() {
 
   return (
     <div>
+      {initialUser && (
+        <div className="flex items-center justify-between mb-4 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-xl">
+          <div className="flex items-center gap-2 text-sm text-sky-700">
+            <Users size={14} />
+            <span>Viewing progress for <strong>{initialUser}</strong></span>
+          </div>
+          <button
+            onClick={() => {
+              setExpanded(null);
+              onClearUser?.();
+            }}
+            className="flex items-center gap-1 text-xs text-sky-500 hover:text-sky-700 transition-colors"
+          >
+            <X size={13} />
+            Show all
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Module Progress</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{summaries.length} students · {TOTAL_TASKS} tasks total</p>
+          <p className="text-sm text-slate-500 mt-0.5">{visibleSummaries.length} student{visibleSummaries.length !== 1 ? 's' : ''} · {TOTAL_TASKS} tasks total</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
@@ -225,7 +256,7 @@ export default function ModuleProgressViewer() {
 
       {view === 'students' ? (
         <StudentsView
-          summaries={summaries}
+          summaries={visibleSummaries}
           expanded={expanded}
           onToggle={(u) => setExpanded(expanded === u ? null : u)}
           getUserRows={getUserRows}

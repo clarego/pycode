@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Loader2, X, Check, Users, Shield, GraduationCap } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, X, Check, Users, Shield, GraduationCap, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { createUser, updateUser, deleteUsers } from '../../lib/api';
 
@@ -10,8 +10,19 @@ interface Profile {
   created_at: string;
 }
 
-export default function UserManagement() {
-  const [users, setUsers] = useState<Profile[]>([]);
+interface UserRow {
+  username: string;
+  taskCount: number;
+  lastActive: string | null;
+}
+
+interface Props {
+  onSelectUser?: (username: string) => void;
+}
+
+export default function UserManagement({ onSelectUser }: Props) {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [userRows, setUserRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showCreate, setShowCreate] = useState(false);
@@ -24,11 +35,49 @@ export default function UserManagement() {
   const [deleting, setDeleting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: true });
-    setUsers((data as Profile[]) || []);
+    setLoading(true);
+    const [profilesRes, progressRes] = await Promise.all([
+      supabase.from('profiles').select('*').order('created_at', { ascending: true }),
+      supabase
+        .from('module_progress')
+        .select('username, completed_at')
+        .order('completed_at', { ascending: false }),
+    ]);
+
+    const profileList = (profilesRes.data as Profile[]) || [];
+    setProfiles(profileList);
+
+    const progressData = progressRes.data || [];
+    const usernameMap: Record<string, { count: number; lastActive: string | null }> = {};
+    for (const row of progressData) {
+      if (!usernameMap[row.username]) {
+        usernameMap[row.username] = { count: 0, lastActive: row.completed_at };
+      }
+      usernameMap[row.username].count++;
+    }
+
+    const knownUsernames = new Set(profileList.map(p => p.username.toLowerCase()));
+    const extraUsernames = Object.keys(usernameMap).filter(
+      u => !knownUsernames.has(u.toLowerCase())
+    );
+
+    const rows: UserRow[] = Object.entries(usernameMap).map(([username, data]) => ({
+      username,
+      taskCount: data.count,
+      lastActive: data.lastActive,
+    }));
+
+    if (!usernameMap['guest'] && !knownUsernames.has('guest')) {
+      extraUsernames.push('guest');
+    }
+
+    extraUsernames.forEach(u => {
+      if (!rows.find(r => r.username === u)) {
+        rows.push({ username: u, taskCount: 0, lastActive: null });
+      }
+    });
+
+    setUserRows(rows.sort((a, b) => a.username.localeCompare(b.username)));
     setLoading(false);
   }, []);
 
@@ -104,12 +153,15 @@ export default function UserManagement() {
   };
 
   const toggleAll = () => {
-    if (selected.size === users.length) {
+    if (selected.size === profiles.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(users.map(u => u.id)));
+      setSelected(new Set(profiles.map(u => u.id)));
     }
   };
+
+  const getProfileForUsername = (username: string) =>
+    profiles.find(p => p.username.toLowerCase() === username.toLowerCase());
 
   if (loading) {
     return (
@@ -125,7 +177,9 @@ export default function UserManagement() {
         <div className="flex items-center gap-3">
           <Users size={20} className="text-slate-600" />
           <h2 className="text-lg font-semibold text-slate-800">User Management</h2>
-          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{users.length} users</span>
+          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+            {userRows.length} users
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {selected.size > 0 && (
@@ -214,69 +268,113 @@ export default function UserManagement() {
       )}
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="w-10 px-3 py-3">
-                <input
-                  type="checkbox"
-                  checked={selected.size === users.length && users.length > 0}
-                  onChange={toggleAll}
-                  className="rounded border-slate-300"
-                />
-              </th>
-              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Username</th>
-              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
-              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created</th>
-              <th className="w-20 px-3 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {users.map((u) => (
-              <tr key={u.id} className={`hover:bg-slate-50 transition-colors ${selected.has(u.id) ? 'bg-sky-50/50' : ''}`}>
-                <td className="px-3 py-3">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(u.id)}
-                    onChange={() => toggleSelect(u.id)}
-                    className="rounded border-slate-300"
-                  />
-                </td>
-                <td className="px-3 py-3">
-                  <span className="text-sm font-medium text-slate-800">{u.username}</span>
-                </td>
-                <td className="px-3 py-3">
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-                    u.role === 'admin'
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                      : 'bg-sky-50 text-sky-700 border border-sky-200'
-                  }`}>
-                    {u.role === 'admin' ? <Shield size={10} /> : <GraduationCap size={10} />}
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-3 py-3 text-xs text-slate-500">
-                  {new Date(u.created_at).toLocaleDateString()}
-                </td>
-                <td className="px-3 py-3">
+        <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 grid grid-cols-12 gap-3">
+          <div className="col-span-1 flex items-center">
+            <input
+              type="checkbox"
+              checked={selected.size === profiles.length && profiles.length > 0}
+              onChange={toggleAll}
+              className="rounded border-slate-300"
+            />
+          </div>
+          <div className="col-span-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Username</div>
+          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</div>
+          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tasks Done</div>
+          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Last Active</div>
+          <div className="col-span-1"></div>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {userRows.map((row) => {
+            const profile = getProfileForUsername(row.username);
+            const isGuest = row.username === 'guest';
+
+            return (
+              <div
+                key={row.username}
+                className={`grid grid-cols-12 gap-3 items-center px-4 py-3 hover:bg-slate-50 transition-colors ${
+                  profile && selected.has(profile.id) ? 'bg-sky-50/50' : ''
+                }`}
+              >
+                <div className="col-span-1">
+                  {profile ? (
+                    <input
+                      type="checkbox"
+                      checked={selected.has(profile.id)}
+                      onChange={() => toggleSelect(profile.id)}
+                      className="rounded border-slate-300"
+                    />
+                  ) : (
+                    <div className="w-4 h-4" />
+                  )}
+                </div>
+
+                <div className="col-span-4 flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-white">{row.username[0].toUpperCase()}</span>
+                  </div>
                   <button
-                    onClick={() => {
-                      setEditingUser(u);
-                      setFormUsername(u.username);
-                      setFormPassword('');
-                      setShowCreate(false);
-                      setError('');
-                    }}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    onClick={() => onSelectUser?.(row.username)}
+                    className="group flex items-center gap-1 text-sm font-medium text-sky-700 hover:text-sky-900 hover:underline transition-colors"
                   >
-                    <Pencil size={14} />
+                    {row.username}
+                    <ChevronRight size={13} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {users.length === 0 && (
+                </div>
+
+                <div className="col-span-2">
+                  {isGuest ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+                      <GraduationCap size={10} />
+                      guest
+                    </span>
+                  ) : profile ? (
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                      profile.role === 'admin'
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        : 'bg-sky-50 text-sky-700 border border-sky-200'
+                    }`}>
+                      {profile.role === 'admin' ? <Shield size={10} /> : <GraduationCap size={10} />}
+                      {profile.role}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200">
+                      <GraduationCap size={10} />
+                      student
+                    </span>
+                  )}
+                </div>
+
+                <div className="col-span-2">
+                  <span className="text-sm text-slate-600">{row.taskCount > 0 ? row.taskCount : '—'}</span>
+                </div>
+
+                <div className="col-span-2 text-xs text-slate-500">
+                  {row.lastActive ? new Date(row.lastActive).toLocaleDateString() : '—'}
+                </div>
+
+                <div className="col-span-1 flex justify-end">
+                  {profile && (
+                    <button
+                      onClick={() => {
+                        setEditingUser(profile);
+                        setFormUsername(profile.username);
+                        setFormPassword('');
+                        setShowCreate(false);
+                        setError('');
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {userRows.length === 0 && (
           <div className="text-center py-10 text-sm text-slate-400">No users found</div>
         )}
       </div>
