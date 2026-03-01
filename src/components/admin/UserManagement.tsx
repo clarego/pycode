@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Users, Shield, GraduationCap, ChevronRight, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Loader2, Users, Shield, GraduationCap, ChevronRight, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const STANDALONE_URL = 'https://qfitpwdrswvnbmzvkoyd.supabase.co';
 const STANDALONE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmaXRwd2Ryc3d2bmJtenZrb3lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTc4NTIsImV4cCI6MjA3NjkzMzg1Mn0.owLaj3VrcyR7_LW9xMwOTTFQupbDKlvAlVwYtbidiNE';
+
+type SortKey = 'username' | 'role' | 'taskCount' | 'lastActive';
+type SortDir = 'asc' | 'desc';
 
 interface LoginUser {
   id: string;
@@ -36,10 +39,19 @@ async function fetchLoginUsers(): Promise<LoginUser[]> {
   return res.json();
 }
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ChevronsUpDown size={12} className="text-slate-300" />;
+  return sortDir === 'asc'
+    ? <ChevronUp size={12} className="text-sky-600" />
+    : <ChevronDown size={12} className="text-sky-600" />;
+}
+
 export default function UserManagement({ onSelectUser }: Props) {
   const [userRows, setUserRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('username');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -82,6 +94,33 @@ export default function UserManagement({ onSelectUser }: Props) {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const sorted = useMemo(() => {
+    return [...userRows].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'username') {
+        cmp = a.username.localeCompare(b.username);
+      } else if (sortKey === 'role') {
+        cmp = Number(b.is_admin) - Number(a.is_admin);
+      } else if (sortKey === 'taskCount') {
+        cmp = a.taskCount - b.taskCount;
+      } else if (sortKey === 'lastActive') {
+        const aTime = a.lastActive ? new Date(a.lastActive).getTime() : 0;
+        const bTime = b.lastActive ? new Date(b.lastActive).getTime() : 0;
+        cmp = aTime - bTime;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [userRows, sortKey, sortDir]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -89,6 +128,18 @@ export default function UserManagement({ onSelectUser }: Props) {
       </div>
     );
   }
+
+  const headerCell = (label: string, key: SortKey, span: string) => (
+    <button
+      onClick={() => handleSort(key)}
+      className={`${span} flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+        sortKey === key ? 'text-sky-600' : 'text-slate-500 hover:text-slate-700'
+      }`}
+    >
+      {label}
+      <SortIcon col={key} sortKey={sortKey} sortDir={sortDir} />
+    </button>
+  );
 
   return (
     <div>
@@ -115,14 +166,14 @@ export default function UserManagement({ onSelectUser }: Props) {
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 grid grid-cols-12 gap-3">
-          <div className="col-span-5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Username</div>
-          <div className="col-span-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</div>
-          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tasks Done</div>
-          <div className="col-span-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Last Active</div>
+          {headerCell('Username', 'username', 'col-span-5')}
+          {headerCell('Role', 'role', 'col-span-3')}
+          {headerCell('Tasks Done', 'taskCount', 'col-span-2')}
+          {headerCell('Last Active', 'lastActive', 'col-span-2')}
         </div>
 
         <div className="divide-y divide-slate-100">
-          {userRows.map((row) => (
+          {sorted.map((row) => (
             <div
               key={row.id}
               className="grid grid-cols-12 gap-3 items-center px-5 py-3.5 hover:bg-slate-50 transition-colors"
@@ -136,10 +187,7 @@ export default function UserManagement({ onSelectUser }: Props) {
                   className="group flex items-center gap-1 text-sm font-medium text-sky-700 hover:text-sky-900 transition-colors"
                 >
                   {row.username}
-                  <ChevronRight
-                    size={13}
-                    className="opacity-0 group-hover:opacity-60 transition-opacity"
-                  />
+                  <ChevronRight size={13} className="opacity-0 group-hover:opacity-60 transition-opacity" />
                 </button>
               </div>
 
@@ -171,7 +219,7 @@ export default function UserManagement({ onSelectUser }: Props) {
           ))}
         </div>
 
-        {userRows.length === 0 && !error && (
+        {sorted.length === 0 && !error && (
           <div className="text-center py-12 text-sm text-slate-400">No users found</div>
         )}
       </div>
