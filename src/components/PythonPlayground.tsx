@@ -22,7 +22,6 @@ import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationC
 import { saveSnippet } from '../lib/snippets';
 import { saveSession } from '../lib/sessions';
 import type { Task } from './modules/curriculum';
-import { curriculum } from './modules/curriculum';
 
 const DEFAULT_FORM: FormState = {
   title: 'My Application',
@@ -149,22 +148,7 @@ export default function PythonPlayground({
 
   const handleRun = useCallback(() => {
     runCode(files, activeFile);
-    if (activeTask) {
-      for (const mod of curriculum) {
-        const idx = mod.tasks.findIndex(t => t.id === activeTask.id);
-        if (idx !== -1) {
-          const key = `${mod.id}-${idx}`;
-          const existing = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
-          if (!existing[key]) {
-            existing[key] = true;
-            localStorage.setItem('pycode_completed_tasks', JSON.stringify(existing));
-            window.dispatchEvent(new Event('pycode_progress_update'));
-          }
-          break;
-        }
-      }
-    }
-  }, [files, activeFile, runCode, activeTask]);
+  }, [files, activeFile, runCode]);
 
   const handleFileChange = useCallback(
     (content: string) => {
