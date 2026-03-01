@@ -25,6 +25,8 @@ import {
   Moon,
   Terminal,
   GraduationCap,
+  Save,
+  FolderOpen,
 } from 'lucide-react';
 import { templates } from '../lib/templates';
 import { useTheme } from './ThemeContext';
@@ -54,6 +56,8 @@ interface ToolbarProps {
   onShowLogin?: () => void;
   onShowChangePassword?: () => void;
   apiKeyLoaded?: boolean;
+  onSaveProject?: () => void;
+  onOpenProject?: () => void;
 }
 
 export default function Toolbar({
@@ -81,6 +85,8 @@ export default function Toolbar({
   onShowLogin,
   onShowChangePassword,
   apiKeyLoaded = false,
+  onSaveProject,
+  onOpenProject,
 }: ToolbarProps) {
   const { darkMode, hackerMode, toggleDarkMode, toggleHackerMode } = useTheme();
   const [showExamples, setShowExamples] = useState(false);
@@ -267,6 +273,28 @@ export default function Toolbar({
             <GraduationCap size={13} />
             <span className="hidden sm:inline">Modules</span>
           </a>
+
+          {profile && (
+            <>
+              <div className="w-px h-5 bg-slate-600 mx-0.5" />
+              <button
+                onClick={onSaveProject}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/40 text-xs font-medium rounded transition-colors border border-emerald-700/50"
+                title="Save project"
+              >
+                <Save size={13} />
+                <span className="hidden sm:inline">Save</span>
+              </button>
+              <button
+                onClick={onOpenProject}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors border border-slate-600/50"
+                title="Open saved project"
+              >
+                <FolderOpen size={13} />
+                <span className="hidden sm:inline">Open</span>
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">

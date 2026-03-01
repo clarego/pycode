@@ -21,6 +21,7 @@ import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationC
 
 import { saveSnippet } from '../lib/snippets';
 import { saveSession } from '../lib/sessions';
+import SavedProjectsDialog from './SavedProjectsDialog';
 import type { Task } from './modules/curriculum';
 
 const DEFAULT_FORM: FormState = {
@@ -98,6 +99,8 @@ export default function PythonPlayground({
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showOpenDialog, setShowOpenDialog] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [showTaskHint, setShowTaskHint] = useState(false);
   const dragCounterRef = useRef(0);
@@ -741,6 +744,8 @@ Keep it concise - no more than 6-8 sentences total.`,
           onShowLogin={onShowLogin}
           onShowChangePassword={onShowChangePassword}
           apiKeyLoaded={!!apiKey}
+          onSaveProject={profile ? () => setShowSaveDialog(true) : undefined}
+          onOpenProject={profile ? () => setShowOpenDialog(true) : undefined}
         />
         <div className="flex-1 min-h-0">
           <ResizablePanel
@@ -755,6 +760,30 @@ Keep it concise - no more than 6-8 sentences total.`,
         )}
         {toast && (
           <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+        )}
+        {showSaveDialog && profile && (
+          <SavedProjectsDialog
+            mode="save"
+            username={profile.username}
+            currentFiles={files}
+            currentActiveFile={activeFile}
+            onLoad={() => {}}
+            onClose={() => setShowSaveDialog(false)}
+          />
+        )}
+        {showOpenDialog && profile && (
+          <SavedProjectsDialog
+            mode="open"
+            username={profile.username}
+            currentFiles={files}
+            currentActiveFile={activeFile}
+            onLoad={(loadedFiles, loadedActive) => {
+              setFiles(loadedFiles);
+              setActiveFile(loadedActive);
+              clearOutput();
+            }}
+            onClose={() => setShowOpenDialog(false)}
+          />
         )}
       </div>
     );
@@ -819,6 +848,8 @@ Keep it concise - no more than 6-8 sentences total.`,
         onShowLogin={onShowLogin}
         onShowChangePassword={onShowChangePassword}
         apiKeyLoaded={!!apiKey}
+        onSaveProject={profile ? () => setShowSaveDialog(true) : undefined}
+        onOpenProject={profile ? () => setShowOpenDialog(true) : undefined}
       />
 
       {activeTask && (
@@ -936,6 +967,36 @@ Keep it concise - no more than 6-8 sentences total.`,
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {showSaveDialog && profile && (
+        <SavedProjectsDialog
+          mode="save"
+          username={profile.username}
+          currentFiles={files}
+          currentActiveFile={activeFile}
+          onLoad={() => {}}
+          onClose={() => {
+            setShowSaveDialog(false);
+            setToast({ message: 'Project saved!', type: 'success' });
+          }}
+        />
+      )}
+
+      {showOpenDialog && profile && (
+        <SavedProjectsDialog
+          mode="open"
+          username={profile.username}
+          currentFiles={files}
+          currentActiveFile={activeFile}
+          onLoad={(loadedFiles, loadedActive) => {
+            setFiles(loadedFiles);
+            setActiveFile(loadedActive);
+            clearOutput();
+            setToast({ message: 'Project loaded!', type: 'success' });
+          }}
+          onClose={() => setShowOpenDialog(false)}
         />
       )}
 
