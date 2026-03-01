@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { curriculum, Task, Module } from './curriculum';
 import ModuleMap from './ModuleMap';
 import ModulePage from './ModulePage';
+import PastWorkPanel from './PastWorkPanel';
 import { useAuth } from '../auth/AuthContext';
 import { markTaskComplete, loadUserProgress } from '../../lib/moduleProgress';
 import PythonPlayground from '../PythonPlayground';
-import { ArrowLeft, GraduationCap, ChevronRight } from 'lucide-react';
+import { ArrowLeft, GraduationCap, ChevronRight, BookOpen } from 'lucide-react';
 
 type ModulesSubview = 'map' | 'module';
 
@@ -22,6 +23,11 @@ export default function ModulesView() {
   const [activeTaskInfo, setActiveTaskInfo] = useState<ActiveTaskInfo | null>(null);
   const [completedKeys, setCompletedKeys] = useState<Record<string, boolean>>({});
   const [praiseTaskId, setPraiseTaskId] = useState<string | null>(null);
+  const [showPastWork, setShowPastWork] = useState(false);
+  const [pastWorkKey, setPastWorkKey] = useState(0);
+
+  const currentFilesRef = useRef<Record<string, string>>({});
+  const currentActiveFileRef = useRef<string>('main.py');
 
   useEffect(() => {
     const local = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
@@ -54,8 +60,11 @@ export default function ModulesView() {
     if (!activeTaskInfo) return;
     const { task, taskIndex, module } = activeTaskInfo;
 
+    const savedCode = currentFilesRef.current[currentActiveFileRef.current] ?? currentFilesRef.current['main.py'] ?? '';
+
     if (user?.username) {
-      await markTaskComplete(user.username, module.id, task.id, taskIndex);
+      await markTaskComplete(user.username, module.id, task.id, taskIndex, savedCode);
+      setPastWorkKey(k => k + 1);
     } else {
       const existing = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
       existing[`${module.id}-${taskIndex}`] = true;
@@ -92,6 +101,14 @@ export default function ModulesView() {
     return !!completedKeys[`${moduleId}-${taskIndex}`];
   }, [completedKeys]);
 
+  const handleLoadPastCode = useCallback((code: string) => {
+    if (activeTaskInfo) {
+      currentFilesRef.current = { ...currentFilesRef.current, [currentActiveFileRef.current]: code };
+    }
+    setShowPastWork(false);
+    window.dispatchEvent(new CustomEvent('pycode_load_code', { detail: { code } }));
+  }, [activeTaskInfo]);
+
   return (
     <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
       {/* Top bar */}
@@ -120,6 +137,17 @@ export default function ModulesView() {
               Log in to save progress
             </span>
           )}
+          <button
+            onClick={() => setShowPastWork(v => !v)}
+            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+              showPastWork
+                ? 'bg-sky-900/40 border-sky-700/60 text-sky-300'
+                : 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border-slate-700'
+            }`}
+          >
+            <BookOpen size={12} />
+            Past Work
+          </button>
           <a
             href="/playground"
             className="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors font-medium"
@@ -132,7 +160,7 @@ export default function ModulesView() {
       {/* Main split layout */}
       <div className="flex flex-1 min-h-0">
         {/* Left panel: module navigation */}
-        <div className="w-[380px] shrink-0 border-r border-slate-800 overflow-y-auto bg-slate-950">
+        <div className="w-[360px] shrink-0 border-r border-slate-800 overflow-y-auto bg-slate-950">
           {subview === 'map' ? (
             <ModuleMap
               onSelectModule={(id) => {
@@ -168,19 +196,35 @@ export default function ModulesView() {
         </div>
 
         {/* Right panel: editor */}
-        <div className="flex-1 min-w-0 relative">
-          {activeTaskInfo ? (
-            <PythonPlayground
-              key={activeTaskInfo.task.id}
-              initialTask={activeTaskInfo.task}
-              onMarkDone={handleMarkDone}
-              praiseTaskId={praiseTaskId}
-              isTaskDone={isTaskDone(activeTaskInfo.module.id, activeTaskInfo.taskIndex)}
-              embedded={false}
-              profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+        <div className="flex-1 min-w-0 relative flex">
+          <div className="flex-1 min-w-0">
+            {activeTaskInfo ? (
+              <PythonPlayground
+                key={activeTaskInfo.task.id}
+                initialTask={activeTaskInfo.task}
+                onMarkDone={handleMarkDone}
+                praiseTaskId={praiseTaskId}
+                isTaskDone={isTaskDone(activeTaskInfo.module.id, activeTaskInfo.taskIndex)}
+                embedded={false}
+                profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+                onFilesChange={(files, activeFile) => {
+                  currentFilesRef.current = files;
+                  currentActiveFileRef.current = activeFile;
+                }}
+              />
+            ) : (
+              <EditorPlaceholder onSelectModule={() => setSubview('map')} />
+            )}
+          </div>
+
+          {/* Past Work panel */}
+          {showPastWork && (
+            <PastWorkPanel
+              key={pastWorkKey}
+              username={user?.username ?? null}
+              onClose={() => setShowPastWork(false)}
+              onLoadCode={handleLoadPastCode}
             />
-          ) : (
-            <EditorPlaceholder onSelectModule={() => setSubview('map')} />
           )}
         </div>
       </div>

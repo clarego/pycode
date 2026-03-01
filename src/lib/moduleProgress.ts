@@ -6,12 +6,13 @@ export interface ProgressRow {
   task_id: string;
   task_index: number;
   completed_at: string;
+  saved_code?: string;
 }
 
-export async function markTaskComplete(username: string, moduleId: string, taskId: string, taskIndex: number): Promise<void> {
+export async function markTaskComplete(username: string, moduleId: string, taskId: string, taskIndex: number, savedCode?: string): Promise<void> {
   await supabase
     .from('module_progress')
-    .upsert({ username, module_id: moduleId, task_id: taskId, task_index: taskIndex }, { onConflict: 'username,task_id' });
+    .upsert({ username, module_id: moduleId, task_id: taskId, task_index: taskIndex, saved_code: savedCode ?? null }, { onConflict: 'username,task_id' });
 
   const existing = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
   existing[`${moduleId}-${taskIndex}`] = true;
@@ -32,10 +33,19 @@ export async function loadUserProgress(username: string): Promise<Record<string,
   return map;
 }
 
+export async function loadUserCompletedCode(username: string): Promise<ProgressRow[]> {
+  const { data } = await supabase
+    .from('module_progress')
+    .select('username, module_id, task_id, task_index, completed_at, saved_code')
+    .eq('username', username)
+    .order('completed_at', { ascending: true });
+  return data || [];
+}
+
 export async function loadAllUsersProgress(): Promise<ProgressRow[]> {
   const { data } = await supabase
     .from('module_progress')
-    .select('username, module_id, task_id, task_index, completed_at')
+    .select('username, module_id, task_id, task_index, completed_at, saved_code')
     .order('completed_at', { ascending: false });
   return data || [];
 }

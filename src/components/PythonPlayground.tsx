@@ -132,6 +132,17 @@ export default function PythonPlayground({
     }
   }, [initialTask]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const code = (e as CustomEvent<{ code: string }>).detail?.code;
+      if (typeof code === 'string') {
+        setFiles(prev => ({ ...prev, [activeFile]: code }));
+      }
+    };
+    window.addEventListener('pycode_load_code', handler);
+    return () => window.removeEventListener('pycode_load_code', handler);
+  }, [activeFile]);
+
   const handleRun = useCallback(() => {
     runCode(files, activeFile);
     if (activeTask) {
