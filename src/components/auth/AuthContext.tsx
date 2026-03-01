@@ -18,6 +18,7 @@ interface AuthContextType {
   initialized: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -179,8 +180,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setApiKey(resolvedKey);
   }, []);
 
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    if (!user) throw new Error('Not logged in');
+    const supabase = createClient(STANDALONE_SUPABASE_URL, STANDALONE_ANON_KEY);
+
+    const { data: match } = await supabase
+      .from('users_login')
+      .select('username')
+      .eq('username', user.username)
+      .eq('password', currentPassword)
+      .maybeSingle();
+
+    if (!match) throw new Error('Current password is incorrect');
+
+    const { error } = await supabase
+      .from('users_login')
+      .update({ password: newPassword })
+      .eq('username', user.username);
+
+    if (error) throw new Error('Failed to update password');
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, apiKey, loading, initialized, login, logout }}>
+    <AuthContext.Provider value={{ user, apiKey, loading, initialized, login, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

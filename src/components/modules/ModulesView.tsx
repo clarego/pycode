@@ -6,7 +6,8 @@ import PastWorkPanel from './PastWorkPanel';
 import { useAuth } from '../auth/AuthContext';
 import { markTaskComplete, loadUserProgress } from '../../lib/moduleProgress';
 import PythonPlayground from '../PythonPlayground';
-import { ArrowLeft, GraduationCap, ChevronRight, BookOpen } from 'lucide-react';
+import ChangePasswordModal from '../auth/ChangePasswordModal';
+import { ArrowLeft, GraduationCap, ChevronRight, BookOpen, KeyRound } from 'lucide-react';
 
 type ModulesSubview = 'map' | 'module';
 
@@ -17,7 +18,7 @@ interface ActiveTaskInfo {
 }
 
 export default function ModulesView() {
-  const { user } = useAuth();
+  const { user, changePassword } = useAuth();
   const [subview, setSubview] = useState<ModulesSubview>('map');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [activeTaskInfo, setActiveTaskInfo] = useState<ActiveTaskInfo | null>(null);
@@ -25,6 +26,7 @@ export default function ModulesView() {
   const [praiseTaskId, setPraiseTaskId] = useState<string | null>(null);
   const [showPastWork, setShowPastWork] = useState(false);
   const [pastWorkKey, setPastWorkKey] = useState(0);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const currentFilesRef = useRef<Record<string, string>>({});
   const currentActiveFileRef = useRef<string>('main.py');
@@ -137,6 +139,16 @@ export default function ModulesView() {
               Log in to save progress
             </span>
           )}
+          {user && (
+            <button
+              onClick={() => setShowChangePassword(true)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border-slate-700"
+              title="Change Password"
+            >
+              <KeyRound size={12} />
+              Password
+            </button>
+          )}
           <button
             onClick={() => setShowPastWork(v => !v)}
             className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
@@ -228,6 +240,13 @@ export default function ModulesView() {
           )}
         </div>
       </div>
+      {showChangePassword && user && (
+        <ChangePasswordModal
+          username={user.username}
+          onClose={() => setShowChangePassword(false)}
+          onChangePassword={changePassword}
+        />
+      )}
     </div>
   );
 }

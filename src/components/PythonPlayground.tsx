@@ -49,6 +49,7 @@ interface PythonPlaygroundProps {
   apiKey?: string;
   logout?: () => void;
   onShowLogin?: () => void;
+  onShowChangePassword?: () => void;
   initialTask?: Task | null;
   onTaskConsumed?: () => void;
   onMarkDone?: () => void;
@@ -69,6 +70,7 @@ export default function PythonPlayground({
   apiKey = '',
   logout,
   onShowLogin,
+  onShowChangePassword,
   initialTask,
   onTaskConsumed,
   onMarkDone,
@@ -750,6 +752,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           loading={loading}
           logout={logout}
           onShowLogin={onShowLogin}
+          onShowChangePassword={onShowChangePassword}
           apiKeyLoaded={!!apiKey}
         />
         <div className="flex-1 min-h-0">
@@ -827,6 +830,7 @@ Keep it concise - no more than 6-8 sentences total.`,
         loading={loading}
         logout={logout}
         onShowLogin={onShowLogin}
+        onShowChangePassword={onShowChangePassword}
         apiKeyLoaded={!!apiKey}
       />
 

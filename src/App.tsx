@@ -8,6 +8,7 @@ import SessionReview from './components/SessionReview';
 import AdminDashboard from './components/admin/AdminDashboard';
 import TaskPage from './components/tasks/TaskPage';
 import LoginModal from './components/auth/LoginModal';
+import ChangePasswordModal from './components/auth/ChangePasswordModal';
 import ModulesView from './components/modules/ModulesView';
 
 type Route =
@@ -44,8 +45,9 @@ function getRoute(): Route {
 
 function AppContent() {
   const [route, setRoute] = useState<Route>(getRoute);
-  const { user, apiKey, loading, initialized, logout } = useAuth();
+  const { user, apiKey, loading, initialized, logout, changePassword } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     function handlePopState() {
@@ -100,9 +102,17 @@ function AppContent() {
           apiKey={apiKey}
           logout={logout}
           onShowLogin={() => setShowLogin(true)}
+          onShowChangePassword={() => setShowChangePassword(true)}
         />
       </div>
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      {showChangePassword && user && (
+        <ChangePasswordModal
+          username={user.username}
+          onClose={() => setShowChangePassword(false)}
+          onChangePassword={changePassword}
+        />
+      )}
     </div>
   );
 }

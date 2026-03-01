@@ -20,6 +20,7 @@ import {
   LogOut,
   User,
   Settings,
+  KeyRound,
   Sun,
   Moon,
   Terminal,
@@ -51,6 +52,7 @@ interface ToolbarProps {
   loading?: boolean;
   logout?: () => void;
   onShowLogin?: () => void;
+  onShowChangePassword?: () => void;
   apiKeyLoaded?: boolean;
 }
 
@@ -77,6 +79,7 @@ export default function Toolbar({
   loading,
   logout,
   onShowLogin,
+  onShowChangePassword,
   apiKeyLoaded = false,
 }: ToolbarProps) {
   const { darkMode, hackerMode, toggleDarkMode, toggleHackerMode } = useTheme();
@@ -132,6 +135,13 @@ export default function Toolbar({
                   >
                     <Settings size={13} />
                   </div>
+                  <button
+                    onClick={onShowChangePassword}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors"
+                    title="Change Password"
+                  >
+                    <KeyRound size={13} />
+                  </button>
                   <button
                     onClick={logout}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors"
