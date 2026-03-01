@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { curriculum } from './curriculum';
 import { loadUserCompletedCode, ProgressRow } from '../../lib/moduleProgress';
-import { X, CheckCircle2, Copy, ChevronDown, ChevronRight, BookOpen, Code2, ClipboardCopy } from 'lucide-react';
+import { X, CheckCircle2, Copy, ChevronDown, ChevronRight, BookOpen, Code2, ClipboardCopy, RefreshCw } from 'lucide-react';
 
 interface PastWorkPanelProps {
   username: string | null;
   onClose: () => void;
   onLoadCode: (code: string, taskTitle: string) => void;
+  onOpenTask?: (moduleId: string, taskId: string) => void;
 }
 
 const moduleColorDot: Record<string, string> = {
@@ -27,7 +28,7 @@ interface EnrichedRow extends ProgressRow {
   taskTitle: string;
 }
 
-export default function PastWorkPanel({ username, onClose, onLoadCode }: PastWorkPanelProps) {
+export default function PastWorkPanel({ username, onClose, onLoadCode, onOpenTask }: PastWorkPanelProps) {
   const [rows, setRows] = useState<EnrichedRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -195,7 +196,16 @@ export default function PastWorkPanel({ username, onClose, onLoadCode }: PastWor
                     <div className="flex flex-col items-center justify-center h-full px-4 text-center">
                       <Code2 size={22} className="text-slate-600 mb-2" />
                       <p className="text-xs text-slate-500">No code saved for this task.</p>
-                      <p className="text-[10px] text-slate-600 mt-1">Tasks completed before this feature was added won't have saved code.</p>
+                      <p className="text-[10px] text-slate-600 mt-1 mb-3">This task was completed before code saving was introduced.</p>
+                      {onOpenTask && (
+                        <button
+                          onClick={() => { onOpenTask(selectedRow.module_id, selectedRow.task_id); onClose(); }}
+                          className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded border font-medium text-sky-300 border-sky-700/60 bg-sky-900/30 hover:bg-sky-800/50 transition-colors"
+                        >
+                          <RefreshCw size={11} />
+                          Re-open task to save code
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

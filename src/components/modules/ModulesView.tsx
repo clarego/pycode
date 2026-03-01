@@ -61,6 +61,18 @@ export default function ModulesView() {
     setActiveTaskInfo({ task, taskIndex, module });
   }, []);
 
+  const handleOpenTaskById = useCallback((moduleId: string, taskId: string) => {
+    const mod = curriculum.find(m => m.id === moduleId);
+    if (!mod) return;
+    const task = mod.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const taskIndex = mod.tasks.indexOf(task);
+    setSelectedModuleId(moduleId);
+    setSubview('module');
+    setActiveTaskInfo({ task, taskIndex, module: mod });
+    setShowPastWork(false);
+  }, []);
+
   const handleMarkDone = useCallback(async () => {
     if (!activeTaskInfo) return;
 
@@ -240,6 +252,7 @@ export default function ModulesView() {
               username={user?.username ?? null}
               onClose={() => setShowPastWork(false)}
               onLoadCode={handleLoadPastCode}
+              onOpenTask={handleOpenTaskById}
             />
           )}
         </div>
