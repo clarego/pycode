@@ -19,7 +19,7 @@ interface ActiveTaskInfo {
 }
 
 export default function ModulesView() {
-  const { user, changePassword } = useAuth();
+  const { user, changePassword, logout } = useAuth();
   const [subview, setSubview] = useState<ModulesSubview>('map');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [activeTaskInfo, setActiveTaskInfo] = useState<ActiveTaskInfo | null>(null);
@@ -233,6 +233,8 @@ export default function ModulesView() {
                 isTaskDone={isTaskDone(activeTaskInfo.module.id, activeTaskInfo.taskIndex)}
                 embedded={false}
                 profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+                logout={logout}
+                onShowChangePassword={() => setShowChangePassword(true)}
                 onFilesChange={(files, activeFile) => {
                   currentFilesRef.current = files;
                   currentActiveFileRef.current = activeFile;
