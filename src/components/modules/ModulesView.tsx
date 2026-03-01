@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { markTaskComplete, loadUserProgress } from '../../lib/moduleProgress';
 import PythonPlayground from '../PythonPlayground';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
+import LoginModal from '../auth/LoginModal';
 import { ArrowLeft, GraduationCap, ChevronRight, BookOpen, KeyRound } from 'lucide-react';
 
 type ModulesSubview = 'map' | 'module';
@@ -27,6 +28,7 @@ export default function ModulesView() {
   const [showPastWork, setShowPastWork] = useState(false);
   const [pastWorkKey, setPastWorkKey] = useState(0);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
   const currentFilesRef = useRef<Record<string, string>>({});
   const currentActiveFileRef = useRef<string>('main.py');
@@ -60,19 +62,17 @@ export default function ModulesView() {
 
   const handleMarkDone = useCallback(async () => {
     if (!activeTaskInfo) return;
-    const { task, taskIndex, module } = activeTaskInfo;
 
+    if (!user?.username) {
+      setShowLogin(true);
+      return;
+    }
+
+    const { task, taskIndex, module } = activeTaskInfo;
     const savedCode = currentFilesRef.current[currentActiveFileRef.current] ?? currentFilesRef.current['main.py'] ?? '';
 
-    if (user?.username) {
-      await markTaskComplete(user.username, module.id, task.id, taskIndex, savedCode);
-      setPastWorkKey(k => k + 1);
-    } else {
-      const existing = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
-      existing[`${module.id}-${taskIndex}`] = true;
-      localStorage.setItem('pycode_completed_tasks', JSON.stringify(existing));
-      window.dispatchEvent(new Event('pycode_progress_update'));
-    }
+    await markTaskComplete(user.username, module.id, task.id, taskIndex, savedCode);
+    setPastWorkKey(k => k + 1);
 
     setPraiseTaskId(task.id);
     setTimeout(() => {
@@ -135,9 +135,12 @@ export default function ModulesView() {
         </div>
         <div className="flex items-center gap-2">
           {!user && (
-            <span className="text-xs text-amber-400 bg-amber-900/30 border border-amber-700/40 px-2.5 py-1 rounded-lg">
+            <button
+              onClick={() => setShowLogin(true)}
+              className="text-xs text-amber-400 bg-amber-900/30 border border-amber-700/40 px-2.5 py-1 rounded-lg hover:bg-amber-900/50 transition-colors"
+            >
               Log in to save progress
-            </span>
+            </button>
           )}
           {user && (
             <button
@@ -247,6 +250,7 @@ export default function ModulesView() {
           onChangePassword={changePassword}
         />
       )}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </div>
   );
 }

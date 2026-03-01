@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { loadAllUsersProgressSummary, loadAllUsersProgress, ProgressRow } from '../../lib/moduleProgress';
 import { curriculum } from '../modules/curriculum';
-import { ChevronDown, ChevronRight, CheckCircle2, Trophy, Users, BarChart2, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, CheckCircle2, Trophy, Users, BarChart2, RefreshCw, AlertCircle } from 'lucide-react';
 
 const moduleColors: Record<string, string> = {
   'module-1': 'bg-emerald-500',
@@ -29,17 +29,24 @@ export default function ModuleProgressViewer() {
   const [allRows, setAllRows] = useState<ProgressRow[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'students' | 'activity'>('students');
 
   const load = async () => {
     setLoading(true);
-    const [sums, rows] = await Promise.all([
-      loadAllUsersProgressSummary(),
-      loadAllUsersProgress(),
-    ]);
-    setSummaries(sums.sort((a, b) => b.total - a.total));
-    setAllRows(rows);
-    setLoading(false);
+    setError(null);
+    try {
+      const [sums, rows] = await Promise.all([
+        loadAllUsersProgressSummary(),
+        loadAllUsersProgress(),
+      ]);
+      setSummaries(sums.sort((a, b) => b.total - a.total));
+      setAllRows(rows);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load progress data');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -50,6 +57,23 @@ export default function ModuleProgressViewer() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="w-5 h-5 border-2 border-slate-500 border-t-slate-200 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle size={28} className="text-red-400" />
+        <p className="text-sm text-slate-600 font-medium">Failed to load progress data</p>
+        <p className="text-xs text-slate-400 max-w-xs text-center">{error}</p>
+        <button
+          onClick={load}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+        >
+          <RefreshCw size={12} />
+          Retry
+        </button>
       </div>
     );
   }
