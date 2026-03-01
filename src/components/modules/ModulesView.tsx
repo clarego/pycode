@@ -4,7 +4,7 @@ import ModuleMap from './ModuleMap';
 import ModulePage from './ModulePage';
 import PastWorkPanel from './PastWorkPanel';
 import { useAuth } from '../auth/AuthContext';
-import { markTaskComplete, loadUserProgress, syncLocalProgressToDb } from '../../lib/moduleProgress';
+import { markTaskComplete, loadUserProgress } from '../../lib/moduleProgress';
 import PythonPlayground from '../PythonPlayground';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
 import LoginModal from '../auth/LoginModal';
@@ -38,11 +38,9 @@ export default function ModulesView() {
     setCompletedKeys(local);
 
     if (user?.username) {
-      syncLocalProgressToDb(user.username);
       loadUserProgress(user.username).then(remote => {
-        const merged = { ...local, ...remote };
-        localStorage.setItem('pycode_completed_tasks', JSON.stringify(merged));
-        setCompletedKeys(merged);
+        localStorage.setItem('pycode_completed_tasks', JSON.stringify(remote));
+        setCompletedKeys(remote);
         window.dispatchEvent(new Event('pycode_progress_update'));
       });
     }
