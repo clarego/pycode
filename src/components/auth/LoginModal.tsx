@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, LogIn, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import { supabase } from '../../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+const STANDALONE_SUPABASE_URL = 'https://qfitpwdrswvnbmzvkoyd.supabase.co';
+const STANDALONE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmaXRwd2Ryc3d2bmJtenZrb3lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTc4NTIsImV4cCI6MjA3NjkzMzg1Mn0.owLaj3VrcyR7_LW9xMwOTTFQupbDKlvAlVwYtbidiNE';
+const standaloneSupabase = createClient(STANDALONE_SUPABASE_URL, STANDALONE_ANON_KEY);
 
 interface LoginModalProps {
   onClose: () => void;
@@ -18,8 +23,8 @@ export default function LoginModal({ onClose }: LoginModalProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase
-      .from('profiles')
+    standaloneSupabase
+      .from('users_login')
       .select('username')
       .order('username', { ascending: true })
       .then(({ data }) => {
