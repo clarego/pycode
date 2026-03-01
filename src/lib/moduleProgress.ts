@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { curriculum } from '../components/modules/curriculum';
 
 export interface ProgressRow {
   username: string;
@@ -41,6 +42,30 @@ export async function loadUserCompletedCode(username: string): Promise<ProgressR
     .eq('username', username)
     .order('completed_at', { ascending: true });
   return data || [];
+}
+
+export async function syncLocalProgressToDb(username: string): Promise<void> {
+  const local: Record<string, boolean> = JSON.parse(localStorage.getItem('pycode_completed_tasks') || '{}');
+  const completedKeys = Object.keys(local).filter(k => local[k]);
+  if (completedKeys.length === 0) return;
+
+  const rows = completedKeys.map(key => {
+    const [, moduleNum, taskIndexStr] = key.match(/^(module-\d+)-(\d+)$/) || [];
+    if (!moduleNum || taskIndexStr === undefined) return null;
+    const taskIndex = parseInt(taskIndexStr, 10);
+    const mod = curriculum.find(m => m.id === moduleNum);
+    if (!mod) return null;
+    const task = mod.tasks[taskIndex];
+    if (!task) return null;
+    return { username, module_id: moduleNum, task_id: task.id, task_index: taskIndex, saved_code: null };
+  }).filter(Boolean) as { username: string; module_id: string; task_id: string; task_index: number; saved_code: null }[];
+
+  if (rows.length === 0) return;
+
+  const { error } = await supabase
+    .from('module_progress')
+    .upsert(rows, { onConflict: 'username,task_id', ignoreDuplicates: true });
+  if (error) console.error('[moduleProgress] syncLocalProgressToDb error:', error);
 }
 
 export async function loadAllUsersProgress(): Promise<ProgressRow[]> {
