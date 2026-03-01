@@ -77,6 +77,15 @@ export async function loadAllUsersProgress(): Promise<ProgressRow[]> {
   return data || [];
 }
 
+export async function resetModuleProgress(username: string, moduleId: string): Promise<void> {
+  const { error } = await supabase
+    .from('module_progress')
+    .delete()
+    .eq('username', username)
+    .eq('module_id', moduleId);
+  if (error) console.error('[moduleProgress] resetModuleProgress error:', error);
+}
+
 export async function loadAllUsersProgressSummary(): Promise<{ username: string; total: number; by_module: Record<string, number> }[]> {
   const { data, error } = await supabase
     .from('module_progress')

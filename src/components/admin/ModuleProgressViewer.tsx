@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react';
-import { loadAllUsersProgressSummary, loadAllUsersProgress, ProgressRow } from '../../lib/moduleProgress';
+import {
+  loadAllUsersProgressSummary,
+  loadAllUsersProgress,
+  resetModuleProgress,
+  ProgressRow,
+} from '../../lib/moduleProgress';
 import { curriculum } from '../modules/curriculum';
-import { ChevronDown, ChevronRight, CheckCircle2, Trophy, Users, BarChart2, RefreshCw, AlertCircle } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Trophy,
+  Users,
+  BarChart2,
+  RefreshCw,
+  AlertCircle,
+  Code2,
+  X,
+  Trash2,
+  RotateCcw,
+} from 'lucide-react';
 
 const moduleColors: Record<string, string> = {
   'module-1': 'bg-emerald-500',
@@ -24,6 +42,84 @@ interface UserSummary {
   by_module: Record<string, number>;
 }
 
+interface CodeModalProps {
+  title: string;
+  code: string;
+  onClose: () => void;
+}
+
+function CodeModal({ title, code, onClose }: CodeModalProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <Code2 size={15} className="text-sky-400" />
+            <span className="text-sm font-semibold text-white">{title}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          {code ? (
+            <pre className="text-xs text-slate-200 font-mono leading-relaxed whitespace-pre-wrap break-words">
+              {code}
+            </pre>
+          ) : (
+            <p className="text-sm text-slate-500 italic text-center py-8">No code saved for this task.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ResetConfirmProps {
+  username: string;
+  moduleName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ResetConfirmModal({ username, moduleName, onConfirm, onCancel }: ResetConfirmProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-xl border border-slate-200 w-full max-w-sm shadow-2xl p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <Trash2 size={16} className="text-red-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-800 text-sm">Reset Module Progress</h3>
+            <p className="text-xs text-slate-500 mt-0.5">This action cannot be undone</p>
+          </div>
+        </div>
+        <p className="text-sm text-slate-600 mb-5">
+          Remove all progress for <strong>{username}</strong> in <strong>{moduleName}</strong>? Their saved code will also be deleted.
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+          >
+            Reset Progress
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ModuleProgressViewer() {
   const [summaries, setSummaries] = useState<UserSummary[]>([]);
   const [allRows, setAllRows] = useState<ProgressRow[]>([]);
@@ -31,6 +127,9 @@ export default function ModuleProgressViewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'students' | 'activity'>('students');
+  const [codeModal, setCodeModal] = useState<{ title: string; code: string } | null>(null);
+  const [resetTarget, setResetTarget] = useState<{ username: string; moduleId: string; moduleName: string } | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -52,6 +151,15 @@ export default function ModuleProgressViewer() {
   useEffect(() => { load(); }, []);
 
   const getUserRows = (username: string) => allRows.filter(r => r.username === username);
+
+  const handleResetConfirm = async () => {
+    if (!resetTarget) return;
+    setResetting(true);
+    await resetModuleProgress(resetTarget.username, resetTarget.moduleId);
+    setResetTarget(null);
+    setResetting(false);
+    await load();
+  };
 
   if (loading) {
     return (
@@ -118,19 +226,42 @@ export default function ModuleProgressViewer() {
           expanded={expanded}
           onToggle={(u) => setExpanded(expanded === u ? null : u)}
           getUserRows={getUserRows}
+          onViewCode={(title, code) => setCodeModal({ title, code })}
+          onResetModule={(username, moduleId, moduleName) => setResetTarget({ username, moduleId, moduleName })}
         />
       ) : (
-        <ActivityView allRows={allRows} />
+        <ActivityView allRows={allRows} onViewCode={(title, code) => setCodeModal({ title, code })} />
+      )}
+
+      {codeModal && (
+        <CodeModal title={codeModal.title} code={codeModal.code} onClose={() => setCodeModal(null)} />
+      )}
+
+      {resetTarget && (
+        <ResetConfirmModal
+          username={resetTarget.username}
+          moduleName={resetTarget.moduleName}
+          onConfirm={handleResetConfirm}
+          onCancel={() => setResetTarget(null)}
+        />
+      )}
+
+      {resetting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        </div>
       )}
     </div>
   );
 }
 
-function StudentsView({ summaries, expanded, onToggle, getUserRows }: {
+function StudentsView({ summaries, expanded, onToggle, getUserRows, onViewCode, onResetModule }: {
   summaries: UserSummary[];
   expanded: string | null;
   onToggle: (u: string) => void;
   getUserRows: (u: string) => ProgressRow[];
+  onViewCode: (title: string, code: string) => void;
+  onResetModule: (username: string, moduleId: string, moduleName: string) => void;
 }) {
   if (summaries.length === 0) {
     return (
@@ -173,7 +304,6 @@ function StudentsView({ summaries, expanded, onToggle, getUserRows }: {
                   <span className="text-[10px] text-slate-400">{pct}%</span>
                 </div>
               </div>
-              {/* Per-module dots */}
               <div className="hidden md:flex gap-1 shrink-0">
                 {curriculum.map((mod) => {
                   const done = student.by_module[mod.id] || 0;
@@ -202,34 +332,68 @@ function StudentsView({ summaries, expanded, onToggle, getUserRows }: {
                     const modPct = Math.round((completedCount / mod.tasks.length) * 100);
                     const modRows = rows.filter(r => r.module_id === mod.id);
                     const bg = moduleColors[mod.id] || 'bg-slate-500';
+                    const hasProgress = completedCount > 0;
 
                     return (
                       <div key={mod.id} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-slate-700">{mod.title}</span>
-                          <span className="text-[10px] text-slate-400">{completedCount}/{mod.tasks.length}</span>
+                          <span className="text-xs font-semibold text-slate-700 truncate flex-1 mr-2">{mod.title}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-slate-400">{completedCount}/{mod.tasks.length}</span>
+                            {hasProgress && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onResetModule(student.username, mod.id, mod.title);
+                                }}
+                                title={`Reset ${mod.title} progress for ${student.username}`}
+                                className="flex items-center gap-0.5 text-[10px] font-medium text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-1.5 py-0.5 rounded transition-colors"
+                              >
+                                <RotateCcw size={9} />
+                                Reset
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="h-1 bg-slate-200 rounded-full overflow-hidden mb-2">
                           <div className={`h-full ${bg} opacity-70 rounded-full transition-all`} style={{ width: `${modPct}%` }} />
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {mod.tasks.map((task, i) => {
-                            const done = !!modRows.find(r => r.task_index === i);
+                            const row = modRows.find(r => r.task_index === i);
+                            const done = !!row;
+                            const hasCode = !!row?.saved_code;
                             return (
                               <div
                                 key={i}
-                                title={`Task ${i + 1}: ${task.title}`}
-                                className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold border ${
+                                title={`Task ${i + 1}: ${task.title}${hasCode ? ' — click to view code' : ''}`}
+                                onClick={() => {
+                                  if (done) {
+                                    onViewCode(
+                                      `${student.username} — ${mod.title} · Task ${i + 1}: ${task.title}`,
+                                      row?.saved_code || ''
+                                    );
+                                  }
+                                }}
+                                className={`w-6 h-6 rounded flex items-center justify-center text-[9px] font-bold border transition-all ${
                                   done
-                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                                    : 'bg-slate-100 border-slate-200 text-slate-400'
+                                    ? `bg-emerald-50 border-emerald-200 text-emerald-600 ${hasCode ? 'cursor-pointer hover:bg-emerald-100 hover:border-emerald-300 hover:scale-110' : 'cursor-default'}`
+                                    : 'bg-slate-100 border-slate-200 text-slate-400 cursor-default'
                                 }`}
                               >
-                                {done ? <CheckCircle2 size={10} className="text-emerald-500" /> : <span>{i + 1}</span>}
+                                {done
+                                  ? hasCode
+                                    ? <Code2 size={10} className="text-emerald-600" />
+                                    : <CheckCircle2 size={10} className="text-emerald-500" />
+                                  : <span>{i + 1}</span>
+                                }
                               </div>
                             );
                           })}
                         </div>
+                        {modRows.some(r => r.saved_code) && (
+                          <p className="text-[9px] text-slate-400 mt-1.5">Click a task to view saved code</p>
+                        )}
                       </div>
                     );
                   })}
@@ -243,7 +407,7 @@ function StudentsView({ summaries, expanded, onToggle, getUserRows }: {
   );
 }
 
-function ActivityView({ allRows }: { allRows: ProgressRow[] }) {
+function ActivityView({ allRows, onViewCode }: { allRows: ProgressRow[]; onViewCode: (title: string, code: string) => void }) {
   const recent = [...allRows].sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()).slice(0, 50);
 
   if (recent.length === 0) {
@@ -257,11 +421,12 @@ function ActivityView({ allRows }: { allRows: ProgressRow[] }) {
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 text-xs font-medium text-slate-500 grid grid-cols-4 gap-3">
+      <div className="px-5 py-3 border-b border-slate-100 text-xs font-medium text-slate-500 grid grid-cols-5 gap-3">
         <span>Student</span>
         <span>Module</span>
         <span>Task</span>
         <span>Completed</span>
+        <span>Code</span>
       </div>
       <div className="divide-y divide-slate-50">
         {recent.map((row) => {
@@ -271,7 +436,7 @@ function ActivityView({ allRows }: { allRows: ProgressRow[] }) {
           const date = new Date(row.completed_at);
 
           return (
-            <div key={`${row.username}-${row.task_id}`} className="px-5 py-2.5 grid grid-cols-4 gap-3 text-xs text-slate-700 hover:bg-slate-50 transition-colors">
+            <div key={`${row.username}-${row.task_id}`} className="px-5 py-2.5 grid grid-cols-5 gap-3 text-xs text-slate-700 hover:bg-slate-50 transition-colors">
               <span className="font-medium text-slate-800">{row.username}</span>
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${bg} shrink-0`} />
@@ -279,6 +444,22 @@ function ActivityView({ allRows }: { allRows: ProgressRow[] }) {
               </div>
               <span className="text-slate-500 truncate">{task?.title || `Task ${row.task_index + 1}`}</span>
               <span className="text-slate-400">{date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>
+                {row.saved_code ? (
+                  <button
+                    onClick={() => onViewCode(
+                      `${row.username} — ${mod?.title || row.module_id} · Task ${row.task_index + 1}${task ? ': ' + task.title : ''}`,
+                      row.saved_code || ''
+                    )}
+                    className="flex items-center gap-1 text-sky-600 hover:text-sky-800 font-medium transition-colors"
+                  >
+                    <Code2 size={11} />
+                    View
+                  </button>
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
+              </span>
             </div>
           );
         })}
