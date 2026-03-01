@@ -247,13 +247,15 @@ export default function ModulesView() {
 
           {/* Past Work panel */}
           {showPastWork && (
-            <PastWorkPanel
-              key={pastWorkKey}
-              username={user?.username ?? null}
-              onClose={() => setShowPastWork(false)}
-              onLoadCode={handleLoadPastCode}
-              onOpenTask={handleOpenTaskById}
-            />
+            <div className="h-full flex flex-col shrink-0 border-l border-slate-800 overflow-hidden" style={{ width: 440 }}>
+              <PastWorkPanel
+                key={pastWorkKey}
+                username={user?.username ?? null}
+                onClose={() => setShowPastWork(false)}
+                onLoadCode={handleLoadPastCode}
+                onOpenTask={handleOpenTaskById}
+              />
+            </div>
           )}
         </div>
       </div>

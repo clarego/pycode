@@ -75,7 +75,7 @@ export default function PastWorkPanel({ username, onClose, onLoadCode, onOpenTas
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 border-l border-slate-800 text-white" style={{ width: 440 }}>
+    <div className="flex flex-col h-full bg-slate-900 text-white w-full">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/90">
         <div className="flex items-center gap-2">
