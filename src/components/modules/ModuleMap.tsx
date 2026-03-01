@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { curriculum, Module } from './curriculum';
-import { ChevronRight, CheckCircle2, BookOpen, Lock } from 'lucide-react';
+import { ChevronRight, CheckCircle2, BookOpen } from 'lucide-react';
 
 interface ModuleMapProps {
   onSelectModule: (moduleId: string) => void;
@@ -98,13 +98,6 @@ function getProgressFromKeys(moduleId: string, taskCount: number, keys: Record<s
   return done;
 }
 
-function isModuleUnlocked(index: number, keys: Record<string, boolean>): boolean {
-  if (index === 0) return true;
-  const prev = curriculum[index - 1];
-  const done = getProgressFromKeys(prev.id, prev.tasks.length, keys);
-  return done >= Math.ceil(prev.tasks.length / 2);
-}
-
 export default function ModuleMap({ onSelectModule, completedKeys = {} }: ModuleMapProps) {
   const [localKeys, setLocalKeys] = useState<Record<string, boolean>>(completedKeys);
 
@@ -134,7 +127,7 @@ export default function ModuleMap({ onSelectModule, completedKeys = {} }: Module
         </div>
         <h1 className="text-xl font-bold text-white mb-1">Python Modules</h1>
         <p className="text-slate-400 text-xs leading-relaxed mb-3">
-          10 modules from turtle basics to maths problem solving. Complete tasks to unlock the next module.
+          10 modules from turtle basics to maths problem solving. Jump to any module or task at any time.
         </p>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -149,11 +142,10 @@ export default function ModuleMap({ onSelectModule, completedKeys = {} }: Module
 
       {/* Module list (compact for sidebar) */}
       <div className="px-3 py-4 space-y-2">
-        {curriculum.map((module, index) => {
+        {curriculum.map((module) => {
           const colors = colorMap[module.color] || colorMap.emerald;
           const done = getProgressFromKeys(module.id, module.tasks.length, localKeys);
           const pct = Math.round((done / module.tasks.length) * 100);
-          const unlocked = isModuleUnlocked(index, localKeys);
           const allDone = done === module.tasks.length;
 
           return (
@@ -163,10 +155,9 @@ export default function ModuleMap({ onSelectModule, completedKeys = {} }: Module
               colors={colors}
               done={done}
               pct={pct}
-              unlocked={unlocked}
               allDone={allDone}
               completedKeys={localKeys}
-              onSelect={() => unlocked && onSelectModule(module.id)}
+              onSelect={() => onSelectModule(module.id)}
             />
           );
         })}
@@ -182,21 +173,19 @@ interface ModuleCardProps {
   colors: ColorEntry;
   done: number;
   pct: number;
-  unlocked: boolean;
   allDone: boolean;
   completedKeys: Record<string, boolean>;
   onSelect: () => void;
 }
 
-function ModuleCard({ module, colors, done, pct, unlocked, allDone, completedKeys, onSelect }: ModuleCardProps) {
+function ModuleCard({ module, colors, done, pct, allDone, completedKeys, onSelect }: ModuleCardProps) {
   return (
     <button
       onClick={onSelect}
-      disabled={!unlocked}
       className={`
         w-full text-left px-3 py-3 rounded-lg border transition-all duration-200
         ${colors.bg} ${colors.border}
-        ${unlocked ? 'cursor-pointer hover:brightness-110' : 'opacity-35 cursor-not-allowed'}
+        cursor-pointer hover:brightness-110
       `}
     >
       <div className="flex items-center gap-2.5 mb-2">
@@ -207,7 +196,7 @@ function ModuleCard({ module, colors, done, pct, unlocked, allDone, completedKey
           <div className="text-xs font-semibold text-white truncate">{module.title}</div>
           <div className="text-[10px] text-slate-500">{module.estimatedTime} · {module.tasks.length} tasks</div>
         </div>
-        {!unlocked ? <Lock size={11} className="text-slate-600 shrink-0" /> : <ChevronRight size={12} className="text-slate-500 shrink-0" />}
+        <ChevronRight size={12} className="text-slate-500 shrink-0" />
       </div>
 
       <div className="flex items-center gap-2">
