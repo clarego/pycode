@@ -5,6 +5,8 @@ export interface CodeSnippet {
   share_id: string;
   title: string;
   files: Record<string, string>;
+  binary_files: Record<string, string>;
+  active_file: string | null;
   created_at: string;
   last_accessed: string | null;
 }
@@ -22,13 +24,21 @@ function generateShareId(length = 7): string {
 
 export async function saveSnippet(
   files: Record<string, string>,
-  title = ''
+  title = '',
+  binaryFiles?: Record<string, string>,
+  activeFile?: string
 ): Promise<{ shortCode: string } | { error: string }> {
   const share_id = generateShareId();
 
   const { error } = await supabase
     .from('code_snippets')
-    .insert({ share_id, title, files });
+    .insert({
+      share_id,
+      title,
+      files,
+      binary_files: binaryFiles || {},
+      active_file: activeFile || null,
+    });
 
   if (error) {
     return { error: error.message };

@@ -9,6 +9,8 @@ interface EmbedViewProps {
 
 export default function EmbedView({ shortCode }: EmbedViewProps) {
   const [files, setFiles] = useState<Record<string, string> | null>(null);
+  const [binaryFiles, setBinaryFiles] = useState<Record<string, string>>({});
+  const [activeFile, setActiveFile] = useState<string | undefined>(undefined);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -17,6 +19,8 @@ export default function EmbedView({ shortCode }: EmbedViewProps) {
       const snippet = await loadSnippet(shortCode);
       if (snippet) {
         setFiles(snippet.files);
+        setBinaryFiles(snippet.binary_files || {});
+        setActiveFile(snippet.active_file || undefined);
       } else {
         setError(true);
       }
@@ -49,7 +53,13 @@ export default function EmbedView({ shortCode }: EmbedViewProps) {
 
   return (
     <div className="h-screen">
-      <PythonPlayground initialFiles={files} isEmbed shareCode={shortCode} />
+      <PythonPlayground
+        initialFiles={files}
+        initialBinaryFiles={binaryFiles}
+        initialActiveFile={activeFile}
+        isEmbed
+        shareCode={shortCode}
+      />
     </div>
   );
 }

@@ -9,6 +9,8 @@ interface SharedViewProps {
 
 export default function SharedView({ shortCode }: SharedViewProps) {
   const [files, setFiles] = useState<Record<string, string> | null>(null);
+  const [binaryFiles, setBinaryFiles] = useState<Record<string, string>>({});
+  const [activeFile, setActiveFile] = useState<string | undefined>(undefined);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -17,6 +19,8 @@ export default function SharedView({ shortCode }: SharedViewProps) {
       const snippet = await loadSnippet(shortCode);
       if (snippet) {
         setFiles(snippet.files);
+        setBinaryFiles(snippet.binary_files || {});
+        setActiveFile(snippet.active_file || undefined);
       } else {
         setError(true);
       }
@@ -60,7 +64,11 @@ export default function SharedView({ shortCode }: SharedViewProps) {
 
   return (
     <div className="h-screen">
-      <PythonPlayground initialFiles={files} />
+      <PythonPlayground
+        initialFiles={files}
+        initialBinaryFiles={binaryFiles}
+        initialActiveFile={activeFile}
+      />
     </div>
   );
 }

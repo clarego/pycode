@@ -40,6 +40,8 @@ print("Hello, World!")
 
 interface PythonPlaygroundProps {
   initialFiles?: Record<string, string>;
+  initialBinaryFiles?: Record<string, string>;
+  initialActiveFile?: string;
   isEmbed?: boolean;
   shareCode?: string;
   embedded?: boolean;
@@ -61,6 +63,8 @@ interface PythonPlaygroundProps {
 
 export default function PythonPlayground({
   initialFiles,
+  initialBinaryFiles,
+  initialActiveFile,
   isEmbed = false,
   shareCode,
   embedded = false,
@@ -84,9 +88,16 @@ export default function PythonPlayground({
     initialFiles || { 'main.py': DEFAULT_CODE }
   );
   const [localBinaryFiles, setLocalBinaryFiles] = useState<Record<string, string>>(
-    binaryFiles || {}
+    initialBinaryFiles || binaryFiles || {}
   );
-  const [activeFile, setActiveFile] = useState('main.py');
+  const [activeFile, setActiveFile] = useState(() => {
+    if (initialActiveFile) return initialActiveFile;
+    if (initialFiles) {
+      const keys = Object.keys(initialFiles);
+      if (keys.length > 0) return keys[0];
+    }
+    return 'main.py';
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
@@ -251,7 +262,7 @@ export default function PythonPlayground({
   );
 
   const handleShare = useCallback(async () => {
-    const result = await saveSnippet(files);
+    const result = await saveSnippet(files, '', effectiveBinaryFiles, activeFile);
     if ('error' in result) {
       setToast({ message: 'Failed to share: ' + result.error, type: 'error' });
       return;
@@ -354,7 +365,7 @@ export default function PythonPlayground({
     }
     const [result, snippetResult] = await Promise.all([
       saveSession(snapshots, durationMs, activeFile, studentName),
-      saveSnippet(files),
+      saveSnippet(files, '', effectiveBinaryFiles, activeFile),
     ]);
     setIsSubmitting(false);
     setShowSubmitDialog(false);
