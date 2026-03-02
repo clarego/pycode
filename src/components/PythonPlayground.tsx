@@ -121,7 +121,10 @@ export default function PythonPlayground({
   const dragCounterRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<CodeEditorHandle>(null);
+  const activeFileRef = useRef(activeFile);
   const { updateFiles, getSnapshots, reset: resetRecorder, recordEvent } = useSessionRecorder();
+
+  activeFileRef.current = activeFile;
 
   const effectiveBinaryFiles = { ...binaryFiles, ...localBinaryFiles };
   const hasBinaryFiles = Object.keys(effectiveBinaryFiles).length > 0;
@@ -163,12 +166,12 @@ export default function PythonPlayground({
     const handler = (e: Event) => {
       const code = (e as CustomEvent<{ code: string }>).detail?.code;
       if (typeof code === 'string') {
-        setFiles(prev => ({ ...prev, [activeFile]: code }));
+        setFiles(prev => ({ ...prev, [activeFileRef.current]: code }));
       }
     };
     window.addEventListener('pycode_load_code', handler);
     return () => window.removeEventListener('pycode_load_code', handler);
-  }, [activeFile]);
+  }, []);
 
   const handleRun = useCallback(() => {
     runCode(files, activeFile);
@@ -176,8 +179,9 @@ export default function PythonPlayground({
 
   const handleFileChange = useCallback(
     (content: string) => {
-      setFiles((prev) => ({ ...prev, [activeFile]: content }));
-      if (activeFile.endsWith('.ipynb') && profile) {
+      const currentFile = activeFileRef.current;
+      setFiles((prev) => ({ ...prev, [currentFile]: content }));
+      if (currentFile.endsWith('.ipynb') && profile) {
         setNotebookSaveStatus('unsaved');
         if (notebookSaveTimerRef.current) clearTimeout(notebookSaveTimerRef.current);
         notebookSaveTimerRef.current = setTimeout(async () => {
@@ -186,8 +190,8 @@ export default function PythonPlayground({
             const currentFiles = await new Promise<Record<string, string>>((resolve) => {
               setFiles((prev) => { resolve(prev); return prev; });
             });
-            const projectName = activeFile.includes('/') ? activeFile.split('/').pop()! : activeFile;
-            const saved = await saveProject(profile.username, projectName, currentFiles, activeFile, notebookSavedId ?? undefined);
+            const projectName = currentFile.includes('/') ? currentFile.split('/').pop()! : currentFile;
+            const saved = await saveProject(profile.username, projectName, currentFiles, currentFile, notebookSavedId ?? undefined);
             setNotebookSavedId(saved.id);
             setNotebookSaveStatus('saved');
           } catch {
@@ -196,7 +200,7 @@ export default function PythonPlayground({
         }, 3000);
       }
     },
-    [activeFile, profile, notebookSavedId]
+    [profile, notebookSavedId]
   );
 
   const handleNotebookManualSave = useCallback(async () => {
