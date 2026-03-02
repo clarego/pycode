@@ -85,10 +85,11 @@ function AppContent() {
     return <ModulesView />;
   }
 
-  if (route.type !== 'playground' && (route.type === 'admin' || (route.type === 'home' && user?.isAdmin))) {
+  if (route.type === 'admin' || (route.type === 'home' && user?.isAdmin)) {
     if (user?.isAdmin) {
       return <AdminDashboard />;
     }
+    return <LoginModal onClose={() => {}} />;
   }
 
   const profile = user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null;
