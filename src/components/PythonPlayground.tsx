@@ -352,16 +352,23 @@ export default function PythonPlayground({
       setShowSubmitDialog(false);
       return;
     }
-    const result = await saveSession(snapshots, durationMs, activeFile, studentName);
+    const [result, snippetResult] = await Promise.all([
+      saveSession(snapshots, durationMs, activeFile, studentName),
+      saveSnippet(files),
+    ]);
     setIsSubmitting(false);
     setShowSubmitDialog(false);
     if ('error' in result) {
       setToast({ message: 'Submit failed: ' + result.error, type: 'error' });
       return;
     }
-    const url = `${window.location.origin}/review/${result.shareId}`;
+    const base = window.location.origin;
+    const url = `${base}/review/${result.shareId}`;
+    const embed = !('error' in snippetResult)
+      ? `<iframe src="${base}/embed/${snippetResult.shortCode}" width="100%" height="500" frameborder="0" style="border:1px solid #e2e8f0;border-radius:8px;" allowfullscreen></iframe>`
+      : '';
     setShareUrl(url);
-    setEmbedCode('');
+    setEmbedCode(embed);
     setShowShare(true);
     resetRecorder();
   }, [getSnapshots, activeFile, resetRecorder]);
