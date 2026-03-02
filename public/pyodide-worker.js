@@ -3661,9 +3661,17 @@ _flask_virtual_files = {}
         const decoder = new TextDecoder();
         return decoder.decode(bytes);
       };
+    } else {
+      self._syncInput = function(prompt) {
+        self.postMessage({ type: 'input-request', prompt: prompt || '' });
+        return '';
+      };
+    }
 
-      await py.runPythonAsync(`
+    await py.runPythonAsync(`
 import builtins as _builtins
+import sys
+import io
 from js import self as _js_self
 
 def _custom_input(prompt=''):
@@ -3671,8 +3679,30 @@ def _custom_input(prompt=''):
     return str(result)
 
 _builtins.input = _custom_input
+
+class _StdinWrapper(io.RawIOBase):
+    _leftover = b''
+    def readable(self):
+        return True
+    def readinto(self, b):
+        if not self._leftover:
+            line = _custom_input('') + '\\n'
+            self._leftover = line.encode()
+        n = min(len(b), len(self._leftover))
+        b[:n] = self._leftover[:n]
+        self._leftover = self._leftover[n:]
+        return n
+    def readline(self, size=-1):
+        line = _custom_input('') + '\\n'
+        data = line.encode()
+        if size != -1:
+            return data[:size]
+        return data
+    def read(self, size=-1):
+        return self.readline(size)
+
+sys.stdin = io.TextIOWrapper(_StdinWrapper(), encoding='utf-8', line_buffering=True)
 `);
-    }
 
     const execCode = transformPygameCode(mainCode);
     await py.runPythonAsync(execCode);
