@@ -125,11 +125,22 @@ export default function TaskView({ shareCode }: TaskViewProps) {
     } else {
       for (const tf of taskFileList) {
         if (isTextFile(tf.name)) {
-          const { data: blob } = await supabase.storage
+          const { data: blob, error: dlErr } = await supabase.storage
             .from('task-files')
             .download(tf.path);
-          if (blob) {
-            files[tf.name] = await blob.text();
+          if (blob && !dlErr) {
+            const text = await blob.text();
+            const looksLikeErrorJson = (() => {
+              try {
+                const parsed = JSON.parse(text);
+                return parsed && typeof parsed === 'object' && ('statusCode' in parsed || 'error' in parsed);
+              } catch {
+                return false;
+              }
+            })();
+            if (!looksLikeErrorJson) {
+              files[tf.name] = text;
+            }
           }
         }
       }
