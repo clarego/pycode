@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { jsPDF } from 'jspdf';
 import {
   Pencil,
   Type,
@@ -297,7 +296,7 @@ export default function PdfAnnotator({
     onSave?.(state, '');
   }, [state, onSave]);
 
-  const handleDownloadSvg = useCallback(() => {
+  const handleDownload = useCallback(() => {
     const svgEl = document.getElementById('pdf-annotation-svg') as SVGSVGElement | null;
     if (!svgEl) return;
     const serializer = new XMLSerializer();
@@ -308,109 +307,6 @@ export default function PdfAnnotator({
     a.download = filename.replace('.pdf', '-annotated.svg');
     a.click();
   }, [filename]);
-
-  const [isExporting, setIsExporting] = useState(false);
-
-  const handleDownloadPdf = useCallback(async () => {
-    const iframeEl = iframeRef.current;
-    if (!iframeEl) return;
-
-    setIsExporting(true);
-
-    try {
-      const iframeRect = iframeEl.getBoundingClientRect();
-      const W = iframeRect.width;
-      const H = iframeRect.height;
-
-      const canvas = document.createElement('canvas');
-      const scale = 2;
-      canvas.width = W * scale;
-      canvas.height = H * scale;
-      const ctx = canvas.getContext('2d')!;
-      ctx.scale(scale, scale);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, W, H);
-
-      await new Promise<void>((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, W, H);
-          resolve();
-        };
-        img.onerror = () => resolve();
-        img.src = pdfUrl;
-      });
-
-      const pageDrawings = state.drawings.filter((d) => d.page === currentPage);
-      for (const path of pageDrawings) {
-        if (path.points.length < 2) continue;
-        ctx.beginPath();
-        ctx.strokeStyle = path.color;
-        ctx.lineWidth = path.strokeWidth;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.moveTo(path.points[0].x, path.points[0].y);
-        for (let i = 1; i < path.points.length; i++) {
-          ctx.lineTo(path.points[i].x, path.points[i].y);
-        }
-        ctx.stroke();
-      }
-
-      const pageImages = state.images.filter((i) => i.page === currentPage);
-      for (const ann of pageImages) {
-        await new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            ctx.drawImage(img, ann.x, ann.y, ann.width, ann.height);
-            resolve();
-          };
-          img.onerror = () => resolve();
-          img.src = ann.src;
-        });
-      }
-
-      const pageTextBoxes = state.textBoxes.filter((t) => t.page === currentPage);
-      for (const tb of pageTextBoxes) {
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.fillRect(tb.x, tb.y, tb.width, tb.height);
-        ctx.fillStyle = tb.color;
-        ctx.font = `${tb.fontSize}px monospace`;
-        const lines = tb.text.split('\n');
-        const lineH = tb.fontSize * 1.4;
-        lines.forEach((line, li) => {
-          const maxW = tb.width - 4;
-          let x = tb.x + 2;
-          let y = tb.y + 2 + tb.fontSize + li * lineH;
-          const words = line.split('');
-          let row = '';
-          for (const ch of words) {
-            const test = row + ch;
-            if (ctx.measureText(test).width > maxW && row.length > 0) {
-              ctx.fillText(row, x, y);
-              row = ch;
-              y += lineH;
-            } else {
-              row = test;
-            }
-          }
-          if (row) ctx.fillText(row, x, y);
-        });
-      }
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const orientation = W > H ? 'landscape' : 'portrait';
-      const pdf = new jsPDF({
-        orientation,
-        unit: 'px',
-        format: [W, H],
-        hotfixes: ['px_scaling'],
-      });
-      pdf.addImage(imgData, 'JPEG', 0, 0, W, H);
-      pdf.save(filename.replace(/\.pdf$/i, '') + '-annotated.pdf');
-    } finally {
-      setIsExporting(false);
-    }
-  }, [state, currentPage, pdfUrl, filename]);
 
   const zoomIn = () => setZoom((z) => Math.min(z + 25, 300));
   const zoomOut = () => setZoom((z) => Math.max(z - 25, 50));
@@ -576,21 +472,12 @@ export default function PdfAnnotator({
         )}
 
         <button
-          onClick={handleDownloadPdf}
-          disabled={isExporting}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-white hover:bg-slate-600 transition-colors disabled:opacity-60"
-          title="Export as PDF with annotations embedded"
-        >
-          {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-          {isExporting ? 'Exporting…' : 'Export PDF'}
-        </button>
-        <button
-          onClick={handleDownloadSvg}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors border border-slate-200"
-          title="Export annotation layer as SVG"
+          onClick={handleDownload}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-white hover:bg-slate-600 transition-colors"
+          title="Download annotated PDF as SVG overlay"
         >
           <Download size={12} />
-          SVG
+          Export
         </button>
       </div>
 
