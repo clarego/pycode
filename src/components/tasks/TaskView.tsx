@@ -173,20 +173,25 @@ export default function TaskView({ shareCode }: TaskViewProps) {
       const flags = getRedFlags();
       let sessionShareId: string | null = null;
 
-      if (snapshots.length > 0) {
-        const result = await saveSession(snapshots, durationMs, 'main.py', user.username);
-        if ('shareId' in result) {
-          sessionShareId = result.shareId;
+      try {
+        if (snapshots.length > 0) {
+          const result = await saveSession(snapshots, durationMs, 'main.py', user.username);
+          if ('shareId' in result) {
+            sessionShareId = result.shareId;
+          }
         }
+      } catch {
+        // session save failure should not block submission
       }
 
       const allFiles = { ...currentFilesRef.current };
+      const filesToSubmit = Object.keys(allFiles).length > 0 ? allFiles : { 'main.py': '# Write your code here\n' };
 
       if (submission) {
         const { error: updateErr } = await supabase
           .from('task_submissions')
           .update({
-            files: allFiles,
+            files: filesToSubmit,
             session_share_id: sessionShareId ?? undefined,
             submitted_at: new Date().toISOString(),
             red_flags: flags,
@@ -199,7 +204,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
           .insert({
             task_id: task.id,
             student_id: user.username,
-            files: allFiles,
+            files: filesToSubmit,
             session_share_id: sessionShareId,
             red_flags: flags,
           });
