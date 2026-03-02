@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Send, CheckCircle2, ClipboardList, LogOut, AlertCircle, Clock, MessageSquare } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, ClipboardList, LogOut, AlertCircle, Clock, MessageSquare, ChevronDown, List } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { saveSession } from '../../lib/sessions';
@@ -34,6 +34,15 @@ interface TaskViewProps {
   shareCode: string;
 }
 
+interface AssignedTaskItem {
+  task_id: string;
+  tasks: {
+    id: string;
+    share_code: string;
+    title: string;
+  };
+}
+
 const TEXT_EXTENSIONS = new Set([
   'py', 'txt', 'js', 'ts', 'html', 'css', 'json', 'csv', 'md',
   'xml', 'yaml', 'yml', 'toml', 'cfg', 'ini', 'sh', 'bat', 'sql',
@@ -56,7 +65,10 @@ export default function TaskView({ shareCode }: TaskViewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [assignedTasks, setAssignedTasks] = useState<AssignedTaskItem[]>([]);
+  const [showTasksDropdown, setShowTasksDropdown] = useState(false);
   const currentFilesRef = useRef<Record<string, string>>({});
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { updateFiles, getSnapshots, recordEvent, getRedFlags } = useSessionRecorder();
 
   const handleFilesChange = useCallback((files: Record<string, string>, activeFile: string) => {
@@ -163,6 +175,28 @@ export default function TaskView({ shareCode }: TaskViewProps) {
 
   useEffect(() => { fetchTask(); }, [fetchTask]);
 
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('task_assignments')
+      .select('task_id, tasks(id, share_code, title)')
+      .eq('student_id', user.username)
+      .then(({ data }) => {
+        if (data) setAssignedTasks(data as unknown as AssignedTaskItem[]);
+      });
+  }, [user]);
+
+  useEffect(() => {
+    if (!showTasksDropdown) return;
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowTasksDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showTasksDropdown]);
+
   const handleSubmit = async () => {
     if (!task || !user) return;
     setSubmitting(true);
@@ -243,7 +277,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
 
   if (submitted) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-50">
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
         <div className="text-center max-w-sm">
           <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="text-emerald-600" size={32} />
@@ -252,13 +286,28 @@ export default function TaskView({ shareCode }: TaskViewProps) {
           <p className="text-sm text-slate-500 mb-6">
             Your work for "{task?.title}" has been submitted successfully. Your teacher will review it shortly.
           </p>
-          <a
-            href={`/task/${shareCode}`}
-            onClick={(e) => { e.preventDefault(); setSubmitted(false); }}
-            className="text-sm text-sky-600 hover:underline"
-          >
-            Back to task
-          </a>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => setSubmitted(false)}
+              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-xl transition-colors"
+            >
+              Continue working
+            </button>
+            {assignedTasks.filter(a => a.tasks?.share_code !== shareCode).length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs text-slate-400 mb-2">Other assigned tasks:</p>
+                {assignedTasks.filter(a => a.tasks?.share_code !== shareCode).map(a => (
+                  <a
+                    key={a.task_id}
+                    href={`/task/${a.tasks.share_code}`}
+                    className="block px-4 py-2 text-sm text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg transition-colors"
+                  >
+                    {a.tasks.title}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -288,8 +337,47 @@ export default function TaskView({ shareCode }: TaskViewProps) {
                 : 'bg-amber-900/40 text-amber-300 border border-amber-700'
             }`}>
               {submission.reviewed ? <CheckCircle2 size={9} /> : <Clock size={9} />}
-              {submission.reviewed ? 'Reviewed' : 'Pending'}
+              {submission.reviewed ? 'Reviewed' : 'Pending review'}
             </span>
+          )}
+          {assignedTasks.length > 0 && (
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowTasksDropdown(!showTasksDropdown)}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+              >
+                <List size={12} />
+                <span>My Tasks</span>
+                <ChevronDown size={10} className={`transition-transform ${showTasksDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              {showTasksDropdown && (
+                <div className="absolute right-0 top-full mt-1 w-64 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-slate-700">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Assigned Tasks</span>
+                  </div>
+                  {assignedTasks.map(a => {
+                    if (!a.tasks) return null;
+                    const isCurrent = a.tasks.share_code === shareCode;
+                    return (
+                      <a
+                        key={a.task_id}
+                        href={`/task/${a.tasks.share_code}`}
+                        onClick={() => setShowTasksDropdown(false)}
+                        className={`flex items-center gap-2 px-3 py-2.5 text-xs transition-colors ${
+                          isCurrent
+                            ? 'bg-slate-700 text-sky-300 cursor-default pointer-events-none'
+                            : 'text-slate-200 hover:bg-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCurrent ? 'bg-sky-400' : 'bg-slate-500'}`} />
+                        <span className="truncate">{a.tasks.title}</span>
+                        {isCurrent && <span className="ml-auto text-[9px] text-sky-400 shrink-0">current</span>}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
           <span className="text-xs text-slate-400">{user?.username}</span>
           <button
