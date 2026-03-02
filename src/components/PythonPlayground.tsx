@@ -918,6 +918,7 @@ Keep it concise - no more than 6-8 sentences total.`,
         onLoadTemplate={handleLoadTemplate}
         onSubmit={handleSubmitClick}
         isSubmitting={isSubmitting}
+        showSubmit={!!(profile && profile.role !== 'admin')}
         onOpenDesigner={() => setShowDesigner(true)}
         hasDesign={designerForm.widgets.length > 0}
         onUploadFile={handleUploadFile}

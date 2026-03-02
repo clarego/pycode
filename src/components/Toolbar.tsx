@@ -48,6 +48,7 @@ interface ToolbarProps {
   onLoadTemplate: (files: Record<string, string>) => void;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  showSubmit?: boolean;
   onOpenDesigner: () => void;
   hasDesign?: boolean;
   onUploadFile?: (name: string, content: string, isBinary?: boolean) => void;
@@ -78,6 +79,7 @@ export default function Toolbar({
   onLoadTemplate,
   onSubmit,
   isSubmitting = false,
+  showSubmit = false,
   onOpenDesigner,
   hasDesign = false,
   onUploadFile,
@@ -310,17 +312,20 @@ export default function Toolbar({
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button
-            onClick={onSubmit}
-            disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-600 disabled:text-slate-400 text-white text-xs font-semibold rounded transition-colors"
-            title="Submit for teacher review"
-          >
-            {isSubmitting ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-            <span className="hidden sm:inline">{isSubmitting ? 'Submitting...' : 'Submit'}</span>
-          </button>
-
-          <div className="w-px h-5 bg-slate-600 mx-1" />
+          {showSubmit && (
+            <>
+              <button
+                onClick={onSubmit}
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-600 disabled:text-slate-400 text-white text-xs font-semibold rounded transition-colors"
+                title="Submit for teacher review"
+              >
+                {isSubmitting ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                <span className="hidden sm:inline">{isSubmitting ? 'Submitting...' : 'Submit'}</span>
+              </button>
+              <div className="w-px h-5 bg-slate-600 mx-1" />
+            </>
+          )}
 
           <button
             onClick={onShare}
