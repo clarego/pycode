@@ -27,6 +27,7 @@ import {
   GraduationCap,
   Save,
   FolderOpen,
+  FileCheck,
 } from 'lucide-react';
 import { templates } from '../lib/templates';
 import { useTheme } from './ThemeContext';
@@ -58,6 +59,7 @@ interface ToolbarProps {
   apiKeyLoaded?: boolean;
   onSaveProject?: () => void;
   onOpenProject?: () => void;
+  onShowSubmissions?: () => void;
 }
 
 export default function Toolbar({
@@ -87,6 +89,7 @@ export default function Toolbar({
   apiKeyLoaded = false,
   onSaveProject,
   onOpenProject,
+  onShowSubmissions,
 }: ToolbarProps) {
   const { darkMode, hackerMode, toggleDarkMode, toggleHackerMode } = useTheme();
   const [showExamples, setShowExamples] = useState(false);
@@ -134,6 +137,15 @@ export default function Toolbar({
                     >
                       Dashboard
                     </a>
+                  )}
+                  {onShowSubmissions && (
+                    <button
+                      onClick={onShowSubmissions}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors"
+                      title="My Submissions"
+                    >
+                      <FileCheck size={13} />
+                    </button>
                   )}
                   <div
                     className={`flex items-center px-1.5 py-1.5 rounded ${apiKeyLoaded ? 'text-emerald-400' : 'text-slate-500'}`}

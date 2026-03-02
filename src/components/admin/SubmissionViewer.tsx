@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Submission {
   id: string;
-  task_id: string;
+  task_id: string | null;
   student_id: string;
   files: Record<string, string> | null;
   session_share_id: string | null;
   submitted_at: string;
   reviewed: boolean;
+  feedback: string | null;
   tasks: { title: string; share_code: string } | null;
 }
 
@@ -60,6 +61,70 @@ function FilesModal({ files, studentName, onClose }: { files: Record<string, str
   );
 }
 
+function FeedbackModal({ submission, onClose, onSave }: {
+  submission: Submission;
+  onClose: () => void;
+  onSave: (id: string, feedback: string, reviewed: boolean) => Promise<void>;
+}) {
+  const [feedback, setFeedback] = useState(submission.feedback || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (markReviewed: boolean) => {
+    setSaving(true);
+    await onSave(submission.id, feedback, markReviewed);
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-2">
+            <MessageSquare size={16} className="text-slate-600" />
+            <span className="text-sm font-semibold text-slate-700">Feedback for {submission.student_id}</span>
+          </div>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+              {submission.tasks?.title ? `Task: ${submission.tasks.title}` : 'Playground submission'}
+            </label>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Enter feedback, comments, or a grade..."
+              rows={5}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition-all resize-none"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleSave(true)}
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+              Save & Mark Reviewed
+            </button>
+            <button
+              onClick={() => handleSave(false)}
+              disabled={saving}
+              className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium rounded-lg transition-colors"
+            >
+              Save Draft
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface SubmissionViewerProps {
   filterUsername?: string;
 }
@@ -69,6 +134,7 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [viewingFiles, setViewingFiles] = useState<{ files: Record<string, string>; studentName: string } | null>(null);
+  const [feedbackSub, setFeedbackSub] = useState<Submission | null>(null);
 
   const fetchSubmissions = useCallback(async () => {
     let query = supabase
@@ -97,6 +163,14 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
     setToggling(null);
   };
 
+  const handleSaveFeedback = async (id: string, feedback: string, reviewed: boolean) => {
+    await supabase
+      .from('task_submissions')
+      .update({ feedback, reviewed })
+      .eq('id', id);
+    await fetchSubmissions();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -116,7 +190,6 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
         </span>
       </div>
 
-
       {submissions.length === 0 ? (
         <div className="text-center py-16 text-sm text-slate-400">No submissions yet.</div>
       ) : (
@@ -125,7 +198,7 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Student</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Task</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Source</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Files</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitted</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
@@ -141,7 +214,14 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                       <span className="text-sm font-medium text-slate-800">{sub.student_id}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-slate-600">{sub.tasks?.title || 'Unknown'}</span>
+                      {sub.tasks ? (
+                        <span className="text-sm text-slate-600">{sub.tasks.title}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                          <Code2 size={11} />
+                          Playground
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {fileCount > 0 ? (
@@ -160,14 +240,21 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                       {new Date(sub.submitted_at).toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-                        sub.reviewed
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}>
-                        {sub.reviewed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                        {sub.reviewed ? 'Reviewed' : 'Pending'}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
+                          sub.reviewed
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {sub.reviewed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                          {sub.reviewed ? 'Reviewed' : 'Pending'}
+                        </span>
+                        {sub.feedback && (
+                          <span className="text-[10px] text-slate-400 truncate max-w-[120px]" title={sub.feedback}>
+                            {sub.feedback}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -183,6 +270,14 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                             Playback
                           </a>
                         )}
+                        <button
+                          onClick={() => setFeedbackSub(sub)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
+                          title="Add feedback"
+                        >
+                          <MessageSquare size={12} />
+                          Feedback
+                        </button>
                         <button
                           onClick={() => toggleReviewed(sub)}
                           disabled={toggling === sub.id}
@@ -214,6 +309,14 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
           files={viewingFiles.files}
           studentName={viewingFiles.studentName}
           onClose={() => setViewingFiles(null)}
+        />
+      )}
+
+      {feedbackSub && (
+        <FeedbackModal
+          submission={feedbackSub}
+          onClose={() => setFeedbackSub(null)}
+          onSave={handleSaveFeedback}
         />
       )}
     </div>

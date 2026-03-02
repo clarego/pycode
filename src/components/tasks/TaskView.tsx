@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Send, CheckCircle2, ClipboardList, LogOut, AlertCircle, Clock } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, ClipboardList, LogOut, AlertCircle, Clock, MessageSquare } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { saveSession } from '../../lib/sessions';
@@ -26,6 +26,7 @@ interface ExistingSubmission {
   id: string;
   submitted_at: string;
   reviewed: boolean;
+  feedback: string | null;
   files: Record<string, string> | null;
 }
 
@@ -87,7 +88,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
     if (user) {
       const { data: sub } = await supabase
         .from('task_submissions')
-        .select('id, submitted_at, reviewed, files')
+        .select('id, submitted_at, reviewed, feedback, files')
         .eq('task_id', taskData.id)
         .eq('student_id', user.username)
         .maybeSingle();
@@ -335,6 +336,23 @@ export default function TaskView({ shareCode }: TaskViewProps) {
                     <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{task.description}</p>
                   ) : (
                     <p className="text-xs text-slate-400 italic">No instructions provided.</p>
+                  )}
+                  {submission?.feedback && (
+                    <div className={`mt-4 p-3 rounded-lg border ${
+                      submission.reviewed
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-sky-50 border-sky-200'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <MessageSquare size={12} className={submission.reviewed ? 'text-emerald-600' : 'text-sky-600'} />
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                          submission.reviewed ? 'text-emerald-700' : 'text-sky-700'
+                        }`}>
+                          Teacher Feedback
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{submission.feedback}</p>
+                    </div>
                   )}
                 </div>
                 <div className="p-3 border-t border-slate-100 shrink-0">

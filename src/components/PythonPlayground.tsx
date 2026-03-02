@@ -20,7 +20,9 @@ import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationC
 
 import { saveSnippet } from '../lib/snippets';
 import { saveSession } from '../lib/sessions';
+import { supabase } from '../lib/supabase';
 import SavedProjectsDialog from './SavedProjectsDialog';
+import MySubmissions from './MySubmissions';
 import { saveProject } from '../lib/savedProjects';
 import type { Task } from './modules/curriculum';
 
@@ -111,6 +113,7 @@ export default function PythonPlayground({
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showOpenDialog, setShowOpenDialog] = useState(false);
+  const [showMySubmissions, setShowMySubmissions] = useState(false);
   const [notebookSaveStatus, setNotebookSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'unsaved'>('idle');
   const [notebookSavedId, setNotebookSavedId] = useState<string | null>(null);
   const notebookSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -359,25 +362,38 @@ export default function PythonPlayground({
       return;
     }
     setIsSubmitting(true);
-    const [result, snippetResult] = await Promise.all([
-      saveSession(snapshots, durationMs, activeFile, profile.username),
-      saveSnippet(files, '', effectiveBinaryFiles, activeFile),
-    ]);
-    setIsSubmitting(false);
-    if ('error' in result) {
-      setToast({ message: 'Submit failed: ' + result.error, type: 'error' });
-      return;
+    try {
+      const [result, snippetResult] = await Promise.all([
+        saveSession(snapshots, durationMs, activeFile, profile.username),
+        saveSnippet(files, '', effectiveBinaryFiles, activeFile),
+      ]);
+      if ('error' in result) {
+        setToast({ message: 'Submit failed: ' + result.error, type: 'error' });
+        return;
+      }
+
+      await supabase
+        .from('task_submissions')
+        .insert({
+          task_id: null,
+          student_id: profile.username,
+          files,
+          session_share_id: result.shareId,
+        });
+
+      const base = window.location.origin;
+      const url = `${base}/review/${result.shareId}`;
+      const embed = !('error' in snippetResult)
+        ? `<iframe src="${base}/embed/${snippetResult.shortCode}" width="100%" height="500" frameborder="0" style="border:1px solid #e2e8f0;border-radius:8px;" allowfullscreen></iframe>`
+        : '';
+      setShareUrl(url);
+      setEmbedCode(embed);
+      setShowShare(true);
+      resetRecorder();
+    } finally {
+      setIsSubmitting(false);
     }
-    const base = window.location.origin;
-    const url = `${base}/review/${result.shareId}`;
-    const embed = !('error' in snippetResult)
-      ? `<iframe src="${base}/embed/${snippetResult.shortCode}" width="100%" height="500" frameborder="0" style="border:1px solid #e2e8f0;border-radius:8px;" allowfullscreen></iframe>`
-      : '';
-    setShareUrl(url);
-    setEmbedCode(embed);
-    setShowShare(true);
-    resetRecorder();
-  }, [profile, getSnapshots, activeFile, resetRecorder, onShowLogin]);
+  }, [profile, getSnapshots, activeFile, files, effectiveBinaryFiles, resetRecorder, onShowLogin]);
 
   const handleExplainError = useCallback(async (errorText: string, userCode?: string): Promise<string> => {
     if (!apiKey) throw new Error('Login required to use the error explanation feature.');
@@ -911,6 +927,7 @@ Keep it concise - no more than 6-8 sentences total.`,
         apiKeyLoaded={!!apiKey}
         onSaveProject={profile ? () => setShowSaveDialog(true) : undefined}
         onOpenProject={profile ? () => setShowOpenDialog(true) : undefined}
+        onShowSubmissions={profile ? () => setShowMySubmissions(true) : undefined}
       />
 
       {activeTask && (
@@ -1050,6 +1067,13 @@ Keep it concise - no more than 6-8 sentences total.`,
             setToast({ message: 'Project loaded!', type: 'success' });
           }}
           onClose={() => setShowOpenDialog(false)}
+        />
+      )}
+
+      {showMySubmissions && profile && (
+        <MySubmissions
+          username={profile.username}
+          onClose={() => setShowMySubmissions(false)}
         />
       )}
 
