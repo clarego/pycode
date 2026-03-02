@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
 import {
   Pencil,
   Type,
@@ -308,70 +309,107 @@ export default function PdfAnnotator({
     a.click();
   }, [filename]);
 
-  const handleDownloadPdf = useCallback(() => {
-    const svgEl = document.getElementById('pdf-annotation-svg') as SVGSVGElement | null;
-    const overlayEl = overlayRef.current;
-    if (!overlayEl) return;
+  const [isExporting, setIsExporting] = useState(false);
 
-    const serializer = new XMLSerializer();
-    const svgStr = svgEl ? serializer.serializeToString(svgEl) : '';
-    const svgDataUrl = svgStr
-      ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
-      : '';
+  const handleDownloadPdf = useCallback(async () => {
+    const iframeEl = iframeRef.current;
+    if (!iframeEl) return;
 
-    const textBoxesHtml = state.textBoxes
-      .filter((t) => t.page === currentPage)
-      .map(
-        (t) => `<div style="position:absolute;left:${t.x}px;top:${t.y}px;width:${t.width}px;height:${t.height}px;font-size:${t.fontSize}px;color:${t.color};font-family:monospace;white-space:pre-wrap;word-break:break-word;background:rgba(255,255,255,0.85);padding:2px;">${t.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
-      )
-      .join('');
+    setIsExporting(true);
 
-    const imagesHtml = state.images
-      .filter((i) => i.page === currentPage)
-      .map(
-        (i) => `<img src="${i.src}" style="position:absolute;left:${i.x}px;top:${i.y}px;width:${i.width}px;height:${i.height}px;object-fit:contain;" />`
-      )
-      .join('');
+    try {
+      const iframeRect = iframeEl.getBoundingClientRect();
+      const W = iframeRect.width;
+      const H = iframeRect.height;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+      const canvas = document.createElement('canvas');
+      const scale = 2;
+      canvas.width = W * scale;
+      canvas.height = H * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
 
-    printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>${filename} (Annotated)</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: white; }
-    .page-container { position: relative; width: 100%; }
-    .pdf-embed { width: 100%; height: 100vh; border: none; display: block; }
-    .annotation-layer { position: absolute; inset: 0; pointer-events: none; }
-    .annotation-layer img { object-fit: contain; }
-    @media print {
-      @page { margin: 0; size: A4; }
-      html, body { height: 100%; }
-      .pdf-embed { height: 100vh; }
-      .no-print { display: none !important; }
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, W, H);
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = pdfUrl;
+      });
+
+      const pageDrawings = state.drawings.filter((d) => d.page === currentPage);
+      for (const path of pageDrawings) {
+        if (path.points.length < 2) continue;
+        ctx.beginPath();
+        ctx.strokeStyle = path.color;
+        ctx.lineWidth = path.strokeWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.moveTo(path.points[0].x, path.points[0].y);
+        for (let i = 1; i < path.points.length; i++) {
+          ctx.lineTo(path.points[i].x, path.points[i].y);
+        }
+        ctx.stroke();
+      }
+
+      const pageImages = state.images.filter((i) => i.page === currentPage);
+      for (const ann of pageImages) {
+        await new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, ann.x, ann.y, ann.width, ann.height);
+            resolve();
+          };
+          img.onerror = () => resolve();
+          img.src = ann.src;
+        });
+      }
+
+      const pageTextBoxes = state.textBoxes.filter((t) => t.page === currentPage);
+      for (const tb of pageTextBoxes) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(tb.x, tb.y, tb.width, tb.height);
+        ctx.fillStyle = tb.color;
+        ctx.font = `${tb.fontSize}px monospace`;
+        const lines = tb.text.split('\n');
+        const lineH = tb.fontSize * 1.4;
+        lines.forEach((line, li) => {
+          const maxW = tb.width - 4;
+          let x = tb.x + 2;
+          let y = tb.y + 2 + tb.fontSize + li * lineH;
+          const words = line.split('');
+          let row = '';
+          for (const ch of words) {
+            const test = row + ch;
+            if (ctx.measureText(test).width > maxW && row.length > 0) {
+              ctx.fillText(row, x, y);
+              row = ch;
+              y += lineH;
+            } else {
+              row = test;
+            }
+          }
+          if (row) ctx.fillText(row, x, y);
+        });
+      }
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const orientation = W > H ? 'landscape' : 'portrait';
+      const pdf = new jsPDF({
+        orientation,
+        unit: 'px',
+        format: [W, H],
+        hotfixes: ['px_scaling'],
+      });
+      pdf.addImage(imgData, 'JPEG', 0, 0, W, H);
+      pdf.save(filename.replace(/\.pdf$/i, '') + '-annotated.pdf');
+    } finally {
+      setIsExporting(false);
     }
-  </style>
-</head>
-<body>
-  <div class="no-print" style="background:#1e293b;color:white;padding:10px 16px;display:flex;align-items:center;gap:12px;font-family:sans-serif;font-size:13px;">
-    <span>Print or Save as PDF to download the annotated worksheet</span>
-    <button onclick="window.print()" style="background:#0ea5e9;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Print / Save as PDF</button>
-    <button onclick="window.close()" style="background:#475569;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Close</button>
-  </div>
-  <div class="page-container">
-    <iframe class="pdf-embed" src="${pdfUrl}"></iframe>
-    <div class="annotation-layer" style="position:absolute;inset:0;pointer-events:none;">
-      ${svgDataUrl ? `<img src="${svgDataUrl}" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;" />` : ''}
-      ${textBoxesHtml}
-      ${imagesHtml}
-    </div>
-  </div>
-</body>
-</html>`);
-    printWindow.document.close();
   }, [state, currentPage, pdfUrl, filename]);
 
   const zoomIn = () => setZoom((z) => Math.min(z + 25, 300));
@@ -539,11 +577,12 @@ export default function PdfAnnotator({
 
         <button
           onClick={handleDownloadPdf}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-white hover:bg-slate-600 transition-colors"
-          title="Export as PDF"
+          disabled={isExporting}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-white hover:bg-slate-600 transition-colors disabled:opacity-60"
+          title="Export as PDF with annotations embedded"
         >
-          <Download size={12} />
-          Export PDF
+          {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+          {isExporting ? 'Exporting…' : 'Export PDF'}
         </button>
         <button
           onClick={handleDownloadSvg}
