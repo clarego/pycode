@@ -57,7 +57,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
   const [submitted, setSubmitted] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const currentFilesRef = useRef<Record<string, string>>({});
-  const { updateFiles, getSnapshots, recordEvent } = useSessionRecorder();
+  const { updateFiles, getSnapshots, recordEvent, getRedFlags } = useSessionRecorder();
 
   const handleFilesChange = useCallback((files: Record<string, string>, activeFile: string) => {
     currentFilesRef.current = files;
@@ -170,6 +170,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
 
     try {
       const { snapshots, durationMs } = getSnapshots();
+      const flags = getRedFlags();
       let sessionShareId: string | null = null;
 
       if (snapshots.length > 0) {
@@ -188,6 +189,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
             files: allFiles,
             session_share_id: sessionShareId ?? undefined,
             submitted_at: new Date().toISOString(),
+            red_flags: flags,
           })
           .eq('id', submission.id);
         if (updateErr) throw updateErr;
@@ -199,6 +201,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
             student_id: user.username,
             files: allFiles,
             session_share_id: sessionShareId,
+            red_flags: flags,
           });
         if (insertErr) throw insertErr;
       }

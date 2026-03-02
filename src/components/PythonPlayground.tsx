@@ -23,6 +23,7 @@ import { saveSession } from '../lib/sessions';
 import { supabase } from '../lib/supabase';
 import SavedProjectsDialog from './SavedProjectsDialog';
 import MySubmissions from './MySubmissions';
+import AssignedTasks from './AssignedTasks';
 import { saveProject } from '../lib/savedProjects';
 import type { Task } from './modules/curriculum';
 
@@ -123,7 +124,7 @@ export default function PythonPlayground({
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<CodeEditorHandle>(null);
   const activeFileRef = useRef(activeFile);
-  const { updateFiles, getSnapshots, reset: resetRecorder, recordEvent } = useSessionRecorder();
+  const { updateFiles, getSnapshots, reset: resetRecorder, recordEvent, getRedFlags } = useSessionRecorder();
 
   activeFileRef.current = activeFile;
 
@@ -379,6 +380,7 @@ export default function PythonPlayground({
           student_id: profile.username,
           files,
           session_share_id: result.shareId,
+          red_flags: getRedFlags(),
         });
 
       const base = window.location.origin;
@@ -929,6 +931,10 @@ Keep it concise - no more than 6-8 sentences total.`,
         onOpenProject={profile ? () => setShowOpenDialog(true) : undefined}
         onShowSubmissions={profile ? () => setShowMySubmissions(true) : undefined}
       />
+
+      {profile && !embedded && (
+        <AssignedTasks username={profile.username} />
+      )}
 
       {activeTask && (
         <div className="relative bg-slate-900 border-b border-sky-700/60 px-4 py-2.5 flex items-start gap-3 flex-wrap">

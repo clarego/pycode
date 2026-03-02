@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload } from 'lucide-react';
+import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
+
+const STANDALONE_URL = 'https://qfitpwdrswvnbmzvkoyd.supabase.co';
+const STANDALONE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmaXRwd2Ryc3d2bmJtenZrb3lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTc4NTIsImV4cCI6MjA3NjkzMzg1Mn0.owLaj3VrcyR7_LW9xMwOTTFQupbDKlvAlVwYtbidiNE';
 
 interface TaskFile {
   name: string;
@@ -20,6 +24,123 @@ interface Task {
   created_at: string;
 }
 
+interface StudentUser {
+  username: string;
+  is_admin: boolean;
+}
+
+async function fetchStudents(): Promise<StudentUser[]> {
+  const res = await fetch(
+    `${STANDALONE_URL}/rest/v1/users_login?select=username,is_admin&is_admin=eq.false&order=username.asc`,
+    {
+      headers: {
+        apikey: STANDALONE_ANON_KEY,
+        Authorization: `Bearer ${STANDALONE_ANON_KEY}`,
+      },
+    }
+  );
+  if (!res.ok) return [];
+  return res.json();
+}
+
+function AssignStudentsModal({ task, students, currentAssignments, onClose, onSave }: {
+  task: Task;
+  students: StudentUser[];
+  currentAssignments: string[];
+  onClose: () => void;
+  onSave: (taskId: string, selected: string[]) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(currentAssignments));
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (username: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(username)) next.delete(username);
+      else next.add(username);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selected.size === students.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(students.map(s => s.username)));
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(task.id, Array.from(selected));
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-sm max-h-[70vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+          <div>
+            <div className="flex items-center gap-2">
+              <UserPlus size={16} className="text-slate-600" />
+              <span className="text-sm font-semibold text-slate-700">Assign Students</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-0.5">{task.title}</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-5 py-2 border-b border-slate-100">
+          <button
+            onClick={selectAll}
+            className="text-xs text-sky-600 hover:text-sky-700 font-medium"
+          >
+            {selected.size === students.length ? 'Deselect all' : 'Select all'}
+          </button>
+          <span className="text-xs text-slate-400 ml-2">{selected.size} selected</span>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          {students.length === 0 ? (
+            <p className="text-center text-sm text-slate-400 py-8">No students found</p>
+          ) : (
+            <div className="space-y-0.5">
+              {students.map(s => (
+                <label
+                  key={s.username}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                    selected.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(s.username)}
+                    onChange={() => toggle(s.username)}
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
+                  />
+                  <span className="text-sm text-slate-700">{s.username}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="p-4 border-t border-slate-200">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save Assignments
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskManager() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -34,17 +155,49 @@ export default function TaskManager() {
   const [dragging, setDragging] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [students, setStudents] = useState<StudentUser[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [assignmentsMap, setAssignmentsMap] = useState<Record<string, string[]>>({});
+  const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
-    const { data } = await supabase
-      .from('tasks')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setTasks((data as Task[]) || []);
+    const [{ data: taskData }, { data: assignData }] = await Promise.all([
+      supabase.from('tasks').select('*').order('created_at', { ascending: false }),
+      supabase.from('task_assignments').select('task_id, student_id'),
+    ]);
+    setTasks((taskData as Task[]) || []);
+
+    const map: Record<string, string[]> = {};
+    for (const row of (assignData || [])) {
+      if (!map[row.task_id]) map[row.task_id] = [];
+      map[row.task_id].push(row.student_id);
+    }
+    setAssignmentsMap(map);
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  useEffect(() => {
+    fetchStudents().then(setStudents);
+  }, []);
+
+  const toggleStudent = (username: string) => {
+    setSelectedStudents(prev => {
+      const next = new Set(prev);
+      if (next.has(username)) next.delete(username);
+      else next.add(username);
+      return next;
+    });
+  };
+
+  const selectAllStudents = () => {
+    if (selectedStudents.size === students.length) {
+      setSelectedStudents(new Set());
+    } else {
+      setSelectedStudents(new Set(students.map(s => s.username)));
+    }
+  };
 
   const addFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
@@ -59,32 +212,15 @@ export default function TaskManager() {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragging(true);
-  };
-
+  const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (dropRef.current && !dropRef.current.contains(e.relatedTarget as Node)) {
-      setDragging(false);
-    }
+    e.preventDefault(); e.stopPropagation();
+    if (dropRef.current && !dropRef.current.contains(e.relatedTarget as Node)) setDragging(false);
   };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragging(false);
-    if (e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files);
-    }
+    e.preventDefault(); e.stopPropagation(); setDragging(false);
+    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -106,7 +242,7 @@ export default function TaskManager() {
         taskFiles.push({ name: file.name, path: storagePath });
       }
 
-      const { error: insertErr } = await supabase.from('tasks').insert({
+      const { data: insertedTask, error: insertErr } = await supabase.from('tasks').insert({
         share_code: shareCode,
         title: title.trim(),
         description: description.trim(),
@@ -114,19 +250,47 @@ export default function TaskManager() {
         file_path: taskFiles.length === 1 ? taskFiles[0].path : null,
         task_files: taskFiles,
         created_by: user?.id,
-      });
+      }).select('id').maybeSingle();
       if (insertErr) throw insertErr;
+
+      if (insertedTask && selectedStudents.size > 0) {
+        const rows = Array.from(selectedStudents).map(sid => ({
+          task_id: insertedTask.id,
+          student_id: sid,
+        }));
+        const { error: assignErr } = await supabase.from('task_assignments').insert(rows);
+        if (assignErr) throw assignErr;
+      }
 
       setShowCreate(false);
       setTitle('');
       setDescription('');
       setFiles([]);
+      setSelectedStudents(new Set());
       await fetchTasks();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create task');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveAssignments = async (taskId: string, selected: string[]) => {
+    const current = assignmentsMap[taskId] || [];
+    const toAdd = selected.filter(s => !current.includes(s));
+    const toRemove = current.filter(s => !selected.includes(s));
+
+    if (toRemove.length > 0) {
+      await supabase.from('task_assignments')
+        .delete()
+        .eq('task_id', taskId)
+        .in('student_id', toRemove);
+    }
+    if (toAdd.length > 0) {
+      await supabase.from('task_assignments')
+        .insert(toAdd.map(sid => ({ task_id: taskId, student_id: sid })));
+    }
+    await fetchTasks();
   };
 
   const handleDelete = async (task: Task) => {
@@ -225,10 +389,47 @@ export default function TaskManager() {
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 resize-y"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Attachments
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-slate-600">Assign to Students</label>
+                <button
+                  type="button"
+                  onClick={selectAllStudents}
+                  className="text-[10px] text-sky-600 hover:text-sky-700 font-medium"
+                >
+                  {selectedStudents.size === students.length ? 'Deselect all' : 'Select all'}
+                </button>
+              </div>
+              {students.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No students found</p>
+              ) : (
+                <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto p-1">
+                  {students.map(s => (
+                    <label
+                      key={s.username}
+                      className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+                        selectedStudents.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.has(s.username)}
+                        onChange={() => toggleStudent(s.username)}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
+                      />
+                      <span className="text-xs text-slate-700">{s.username}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {selectedStudents.size > 0 && (
+                <p className="text-[10px] text-slate-400 mt-1">{selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Attachments</label>
               <div
                 ref={dropRef}
                 onDragEnter={handleDragEnter}
@@ -300,6 +501,7 @@ export default function TaskManager() {
         {tasks.map((task) => {
           const fileNames = getFileNames(task);
           const fileCount = getFileCount(task);
+          const assigned = assignmentsMap[task.id] || [];
           return (
             <div key={task.id} className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
               <div className="flex items-start justify-between">
@@ -314,6 +516,25 @@ export default function TaskManager() {
                         <FileText size={10} />
                         {fileCount} file{fileCount !== 1 ? 's' : ''}
                       </span>
+                    )}
+                    {assigned.length > 0 && (
+                      <button
+                        onClick={() => setAssignModalTask(task)}
+                        className="inline-flex items-center gap-1 text-xs text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
+                        title={assigned.join(', ')}
+                      >
+                        <Users size={10} />
+                        {assigned.length} student{assigned.length !== 1 ? 's' : ''}
+                      </button>
+                    )}
+                    {assigned.length === 0 && (
+                      <button
+                        onClick={() => setAssignModalTask(task)}
+                        className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-600 px-2 py-0.5 rounded border border-dashed border-slate-200 hover:border-sky-300 transition-colors"
+                      >
+                        <UserPlus size={9} />
+                        Assign
+                      </button>
                     )}
                     <span className="text-xs text-slate-400">
                       {new Date(task.created_at).toLocaleDateString()}
@@ -358,6 +579,16 @@ export default function TaskManager() {
           </div>
         )}
       </div>
+
+      {assignModalTask && (
+        <AssignStudentsModal
+          task={assignModalTask}
+          students={students}
+          currentAssignments={assignmentsMap[assignModalTask.id] || []}
+          onClose={() => setAssignModalTask(null)}
+          onSave={handleSaveAssignments}
+        />
+      )}
     </div>
   );
 }

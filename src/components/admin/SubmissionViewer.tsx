@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2 } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+
+interface RedFlag {
+  type: 'paste' | 'bulk_insert';
+  chars: number;
+  timestamp_ms: number;
+  file: string;
+}
 
 interface Submission {
   id: string;
@@ -11,6 +18,7 @@ interface Submission {
   submitted_at: string;
   reviewed: boolean;
   feedback: string | null;
+  red_flags: RedFlag[] | null;
   tasks: { title: string; share_code: string } | null;
 }
 
@@ -90,6 +98,33 @@ function FeedbackModal({ submission, onClose, onSave }: {
           </button>
         </div>
         <div className="p-5 space-y-4">
+          {submission.red_flags && submission.red_flags.length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AlertTriangle size={13} className="text-red-500" />
+                <span className="text-xs font-semibold text-red-700">
+                  {submission.red_flags.length} Suspicious Event{submission.red_flags.length !== 1 ? 's' : ''} Detected
+                </span>
+              </div>
+              <div className="space-y-1">
+                {submission.red_flags.map((f, i) => {
+                  const mins = Math.floor(f.timestamp_ms / 60000);
+                  const secs = Math.floor((f.timestamp_ms % 60000) / 1000);
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-[11px] text-red-600">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        f.type === 'paste' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {f.type === 'paste' ? 'PASTE' : 'BULK'}
+                      </span>
+                      <span>{f.chars} chars in <span className="font-mono">{f.file}</span></span>
+                      <span className="text-red-400">at {mins}:{secs.toString().padStart(2, '0')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">
               {submission.tasks?.title ? `Task: ${submission.tasks.title}` : 'Playground submission'}
@@ -241,14 +276,29 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
-                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
-                          sub.reviewed
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {sub.reviewed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                          {sub.reviewed ? 'Reviewed' : 'Pending'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
+                            sub.reviewed
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {sub.reviewed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                            {sub.reviewed ? 'Reviewed' : 'Pending'}
+                          </span>
+                          {sub.red_flags && sub.red_flags.length > 0 && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 cursor-help"
+                              title={sub.red_flags.map(f => {
+                                const mins = Math.floor(f.timestamp_ms / 60000);
+                                const secs = Math.floor((f.timestamp_ms % 60000) / 1000);
+                                return `${f.type === 'paste' ? 'Paste' : 'Bulk insert'}: ${f.chars} chars in ${f.file} at ${mins}:${secs.toString().padStart(2, '0')}`;
+                              }).join('\n')}
+                            >
+                              <AlertTriangle size={9} />
+                              {sub.red_flags.length} flag{sub.red_flags.length !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
                         {sub.feedback && (
                           <span className="text-[10px] text-slate-400 truncate max-w-[120px]" title={sub.feedback}>
                             {sub.feedback}
