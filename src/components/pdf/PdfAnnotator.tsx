@@ -296,7 +296,7 @@ export default function PdfAnnotator({
     onSave?.(state, '');
   }, [state, onSave]);
 
-  const handleDownload = useCallback(() => {
+  const handleDownloadSvg = useCallback(() => {
     const svgEl = document.getElementById('pdf-annotation-svg') as SVGSVGElement | null;
     if (!svgEl) return;
     const serializer = new XMLSerializer();
@@ -307,6 +307,72 @@ export default function PdfAnnotator({
     a.download = filename.replace('.pdf', '-annotated.svg');
     a.click();
   }, [filename]);
+
+  const handleDownloadPdf = useCallback(() => {
+    const svgEl = document.getElementById('pdf-annotation-svg') as SVGSVGElement | null;
+    const overlayEl = overlayRef.current;
+    if (!overlayEl) return;
+
+    const serializer = new XMLSerializer();
+    const svgStr = svgEl ? serializer.serializeToString(svgEl) : '';
+    const svgDataUrl = svgStr
+      ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
+      : '';
+
+    const textBoxesHtml = state.textBoxes
+      .filter((t) => t.page === currentPage)
+      .map(
+        (t) => `<div style="position:absolute;left:${t.x}px;top:${t.y}px;width:${t.width}px;height:${t.height}px;font-size:${t.fontSize}px;color:${t.color};font-family:monospace;white-space:pre-wrap;word-break:break-word;background:rgba(255,255,255,0.85);padding:2px;">${t.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`
+      )
+      .join('');
+
+    const imagesHtml = state.images
+      .filter((i) => i.page === currentPage)
+      .map(
+        (i) => `<img src="${i.src}" style="position:absolute;left:${i.x}px;top:${i.y}px;width:${i.width}px;height:${i.height}px;object-fit:contain;" />`
+      )
+      .join('');
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>${filename} (Annotated)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: white; }
+    .page-container { position: relative; width: 100%; }
+    .pdf-embed { width: 100%; height: 100vh; border: none; display: block; }
+    .annotation-layer { position: absolute; inset: 0; pointer-events: none; }
+    .annotation-layer img { object-fit: contain; }
+    @media print {
+      @page { margin: 0; size: A4; }
+      html, body { height: 100%; }
+      .pdf-embed { height: 100vh; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="background:#1e293b;color:white;padding:10px 16px;display:flex;align-items:center;gap:12px;font-family:sans-serif;font-size:13px;">
+    <span>Print or Save as PDF to download the annotated worksheet</span>
+    <button onclick="window.print()" style="background:#0ea5e9;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Print / Save as PDF</button>
+    <button onclick="window.close()" style="background:#475569;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Close</button>
+  </div>
+  <div class="page-container">
+    <iframe class="pdf-embed" src="${pdfUrl}"></iframe>
+    <div class="annotation-layer" style="position:absolute;inset:0;pointer-events:none;">
+      ${svgDataUrl ? `<img src="${svgDataUrl}" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;" />` : ''}
+      ${textBoxesHtml}
+      ${imagesHtml}
+    </div>
+  </div>
+</body>
+</html>`);
+    printWindow.document.close();
+  }, [state, currentPage, pdfUrl, filename]);
 
   const zoomIn = () => setZoom((z) => Math.min(z + 25, 300));
   const zoomOut = () => setZoom((z) => Math.max(z - 25, 50));
@@ -472,12 +538,20 @@ export default function PdfAnnotator({
         )}
 
         <button
-          onClick={handleDownload}
+          onClick={handleDownloadPdf}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-white hover:bg-slate-600 transition-colors"
-          title="Download annotated PDF as SVG overlay"
+          title="Export as PDF"
         >
           <Download size={12} />
-          Export
+          Export PDF
+        </button>
+        <button
+          onClick={handleDownloadSvg}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors border border-slate-200"
+          title="Export annotation layer as SVG"
+        >
+          <Download size={12} />
+          SVG
         </button>
       </div>
 
