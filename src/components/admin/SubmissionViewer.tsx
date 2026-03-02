@@ -10,8 +10,7 @@ interface Submission {
   session_share_id: string | null;
   submitted_at: string;
   reviewed: boolean;
-  profiles: { username: string };
-  tasks: { title: string; share_code: string };
+  tasks: { title: string; share_code: string } | null;
 }
 
 function FilesModal({ files, studentName, onClose }: { files: Record<string, string>; studentName: string; onClose: () => void }) {
@@ -74,18 +73,11 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const fetchSubmissions = useCallback(async () => {
     let query = supabase
       .from('task_submissions')
-      .select('*, profiles!task_submissions_student_id_fkey(username), tasks!task_submissions_task_id_fkey(title, share_code)')
+      .select('*, tasks(title, share_code)')
       .order('submitted_at', { ascending: false });
 
     if (filterUsername) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', filterUsername)
-        .maybeSingle();
-      if (profile?.id) {
-        query = query.eq('student_id', profile.id);
-      }
+      query = query.eq('student_id', filterUsername);
     }
 
     const { data } = await query;
@@ -146,7 +138,7 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                 return (
                   <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="text-sm font-medium text-slate-800">{sub.profiles?.username || 'Unknown'}</span>
+                      <span className="text-sm font-medium text-slate-800">{sub.student_id}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-slate-600">{sub.tasks?.title || 'Unknown'}</span>
@@ -154,7 +146,7 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                     <td className="px-4 py-3">
                       {fileCount > 0 ? (
                         <button
-                          onClick={() => setViewingFiles({ files: sub.files!, studentName: sub.profiles?.username || 'Unknown' })}
+                          onClick={() => setViewingFiles({ files: sub.files!, studentName: sub.student_id })}
                           className="flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 hover:underline"
                         >
                           <FileCode size={12} />
