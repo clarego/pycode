@@ -9,7 +9,6 @@ import Toolbar from './Toolbar';
 import ShareDialog from './ShareDialog';
 import ResizablePanel from './ResizablePanel';
 import Toast from './Toast';
-import SubmitDialog from './SubmitDialog';
 import GuiDesigner from './gui-designer/GuiDesigner';
 import NotebookEditor from './notebook/NotebookEditor';
 import type { FormState } from './gui-designer/types';
@@ -108,7 +107,6 @@ export default function PythonPlayground({
   const [designerForm, setDesignerForm] = useState<FormState>(DEFAULT_FORM);
   const [fileManagerCollapsed, setFileManagerCollapsed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -349,30 +347,23 @@ export default function PythonPlayground({
     }
   }, [onPasteDetected, recordEvent]);
 
-  const handleSubmitClick = useCallback(() => {
-    const { snapshots } = getSnapshots();
-    if (snapshots.length === 0) {
-      setToast({ message: 'Nothing to submit - start coding first!', type: 'error' });
+  const handleSubmitClick = useCallback(async () => {
+    if (!profile) {
+      setToast({ message: 'You must be logged in to submit.', type: 'error' });
+      onShowLogin?.();
       return;
     }
-    setShowSubmitDialog(true);
-  }, [getSnapshots]);
-
-  const handleSubmitWithName = useCallback(async (studentName: string) => {
-    setIsSubmitting(true);
     const { snapshots, durationMs } = getSnapshots();
     if (snapshots.length === 0) {
       setToast({ message: 'Nothing to submit - start coding first!', type: 'error' });
-      setIsSubmitting(false);
-      setShowSubmitDialog(false);
       return;
     }
+    setIsSubmitting(true);
     const [result, snippetResult] = await Promise.all([
-      saveSession(snapshots, durationMs, activeFile, studentName),
+      saveSession(snapshots, durationMs, activeFile, profile.username),
       saveSnippet(files, '', effectiveBinaryFiles, activeFile),
     ]);
     setIsSubmitting(false);
-    setShowSubmitDialog(false);
     if ('error' in result) {
       setToast({ message: 'Submit failed: ' + result.error, type: 'error' });
       return;
@@ -386,7 +377,7 @@ export default function PythonPlayground({
     setEmbedCode(embed);
     setShowShare(true);
     resetRecorder();
-  }, [getSnapshots, activeFile, resetRecorder]);
+  }, [profile, getSnapshots, activeFile, resetRecorder, onShowLogin]);
 
   const handleExplainError = useCallback(async (errorText: string, userCode?: string): Promise<string> => {
     if (!apiKey) throw new Error('Login required to use the error explanation feature.');
@@ -1015,14 +1006,6 @@ Keep it concise - no more than 6-8 sentences total.`,
           <img src="/digivec_logo.png" alt="Digital Vector" className="h-6 opacity-80 group-hover:opacity-100 transition-opacity" />
         </a>
       </div>
-
-      {showSubmitDialog && (
-        <SubmitDialog
-          onSubmit={handleSubmitWithName}
-          onClose={() => setShowSubmitDialog(false)}
-          isSubmitting={isSubmitting}
-        />
-      )}
 
       {showShare && (
         <ShareDialog
