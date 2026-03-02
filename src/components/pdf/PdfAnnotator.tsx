@@ -495,7 +495,7 @@ export default function PdfAnnotator({
             src={pdfPageUrl}
             title={filename}
             className="w-full border-0 block"
-            style={{ height: `calc(${zoom / 100} * 80vh)`, minHeight: 500 }}
+            style={{ height: `calc(${zoom / 100} * 500vh)`, minHeight: 600 }}
             onLoad={() => {}}
           />
 
