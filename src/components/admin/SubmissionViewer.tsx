@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
+import type { AnnotationState } from '../../lib/pdfAnnotations';
+import PdfAnnotator from '../pdf/PdfAnnotator';
 
 interface RedFlag {
   type: 'paste' | 'bulk_insert';
@@ -19,7 +22,7 @@ interface Submission {
   reviewed: boolean;
   feedback: string | null;
   red_flags: RedFlag[] | null;
-  tasks: { title: string; share_code: string } | null;
+  tasks: { title: string; share_code: string; task_files: { name: string; path: string }[] | null; file_name: string | null; file_path: string | null } | null;
 }
 
 function FilesModal({ files, studentName, onClose }: { files: Record<string, string>; studentName: string; onClose: () => void }) {
@@ -160,6 +163,153 @@ function FeedbackModal({ submission, onClose, onSave }: {
   );
 }
 
+interface PdfAnnotationEntry {
+  filename: string;
+  pdfUrl: string;
+  annotationState: AnnotationState;
+  updatedAt: string;
+}
+
+function PdfAnnotationsModal({ submission, onClose }: {
+  submission: Submission;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<PdfAnnotationEntry[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      const pdfFiles: { name: string; path: string }[] = [];
+
+      if (submission.tasks) {
+        const taskFiles = submission.tasks.task_files ?? [];
+        const singleFile = submission.tasks.file_name && submission.tasks.file_path
+          ? [{ name: submission.tasks.file_name, path: submission.tasks.file_path }]
+          : [];
+        const allFiles = taskFiles.length > 0 ? taskFiles : singleFile;
+        for (const f of allFiles) {
+          if (f.name.toLowerCase().endsWith('.pdf')) {
+            pdfFiles.push(f);
+          }
+        }
+      }
+
+      if (pdfFiles.length === 0) {
+        setError('No PDF files found in this task.');
+        setLoading(false);
+        return;
+      }
+
+      const results: PdfAnnotationEntry[] = [];
+
+      for (const pf of pdfFiles) {
+        const annotation = await loadPdfAnnotation(submission.student_id, pf.name);
+        if (!annotation) continue;
+
+        const { data: urlData } = await supabase.storage
+          .from('task-files')
+          .createSignedUrl(pf.path, 3600);
+
+        if (!urlData?.signedUrl) continue;
+
+        results.push({
+          filename: pf.name,
+          pdfUrl: urlData.signedUrl,
+          annotationState: annotation.annotation_state,
+          updatedAt: annotation.updated_at,
+        });
+      }
+
+      if (results.length === 0) {
+        setError('This student has not saved any annotations yet.');
+        setLoading(false);
+        return;
+      }
+
+      setEntries(results);
+      setLoading(false);
+    }
+
+    load();
+  }, [submission]);
+
+  const active = entries[activeIdx];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+          <div className="flex items-center gap-2">
+            <FileText size={16} className="text-slate-500" />
+            <span className="text-sm font-semibold text-slate-700">
+              PDF Annotations — {submission.student_id}
+            </span>
+            {entries.length > 1 && (
+              <div className="flex gap-1 ml-2">
+                {entries.map((e, i) => (
+                  <button
+                    key={e.filename}
+                    onClick={() => setActiveIdx(i)}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      i === activeIdx
+                        ? 'bg-sky-100 text-sky-700 font-medium'
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    {e.filename}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0">
+          {loading ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="flex items-center gap-2 text-slate-400 text-sm">
+                <Loader2 size={16} className="animate-spin" />
+                Loading annotations…
+              </div>
+            </div>
+          ) : error ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center text-slate-400 text-sm space-y-1">
+                <FileText size={32} className="mx-auto opacity-40" />
+                <p>{error}</p>
+              </div>
+            </div>
+          ) : active ? (
+            <PdfAnnotator
+              pdfUrl={active.pdfUrl}
+              filename={active.filename}
+              initialState={active.annotationState}
+              readOnly
+            />
+          ) : null}
+        </div>
+
+        {active && !loading && !error && (
+          <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 shrink-0">
+            <span className="text-xs text-slate-400">
+              Last saved: {new Date(active.updatedAt).toLocaleString()}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface SubmissionViewerProps {
   filterUsername?: string;
 }
@@ -170,11 +320,12 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const [toggling, setToggling] = useState<string | null>(null);
   const [viewingFiles, setViewingFiles] = useState<{ files: Record<string, string>; studentName: string } | null>(null);
   const [feedbackSub, setFeedbackSub] = useState<Submission | null>(null);
+  const [pdfSub, setPdfSub] = useState<Submission | null>(null);
 
   const fetchSubmissions = useCallback(async () => {
     let query = supabase
       .from('task_submissions')
-      .select('*, tasks(title, share_code)')
+      .select('*, tasks(title, share_code, task_files, file_name, file_path)')
       .order('submitted_at', { ascending: false });
 
     if (filterUsername) {
@@ -205,6 +356,14 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
       .eq('id', id);
     await fetchSubmissions();
   };
+
+  function hasPdfFiles(sub: Submission): boolean {
+    if (!sub.tasks) return false;
+    const allFiles = sub.tasks.task_files ?? [];
+    const single = sub.tasks.file_name ? [{ name: sub.tasks.file_name }] : [];
+    const files = allFiles.length > 0 ? allFiles : single;
+    return files.some(f => f.name.toLowerCase().endsWith('.pdf'));
+  }
 
   if (loading) {
     return (
@@ -320,6 +479,16 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                             Playback
                           </a>
                         )}
+                        {hasPdfFiles(sub) && (
+                          <button
+                            onClick={() => setPdfSub(sub)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            title="View student PDF annotations"
+                          >
+                            <FileText size={12} />
+                            PDF
+                          </button>
+                        )}
                         <button
                           onClick={() => setFeedbackSub(sub)}
                           className="flex items-center gap-1 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
@@ -367,6 +536,13 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
           submission={feedbackSub}
           onClose={() => setFeedbackSub(null)}
           onSave={handleSaveFeedback}
+        />
+      )}
+
+      {pdfSub && (
+        <PdfAnnotationsModal
+          submission={pdfSub}
+          onClose={() => setPdfSub(null)}
         />
       )}
     </div>

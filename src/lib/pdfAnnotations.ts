@@ -61,6 +61,19 @@ export async function loadPdfAnnotation(
   return data as PdfAnnotation;
 }
 
+export async function loadAllAnnotationsForPdf(
+  pdfFilename: string
+): Promise<PdfAnnotation[]> {
+  const { data, error } = await supabase
+    .from('pdf_annotations')
+    .select('*')
+    .eq('pdf_filename', pdfFilename)
+    .order('updated_at', { ascending: false });
+
+  if (error || !data) return [];
+  return data as PdfAnnotation[];
+}
+
 export async function savePdfAnnotation(
   username: string,
   pdfFilename: string,
