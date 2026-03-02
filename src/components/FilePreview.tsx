@@ -1,9 +1,11 @@
-import { Download, Eye, File, FileText, Table, Maximize2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Download, Eye, File, FileText, Maximize2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import PdfAnnotatorWrapper from './pdf/PdfAnnotatorWrapper';
 
 interface FilePreviewProps {
   filename: string | null;
   url: string | null;
+  username?: string;
 }
 
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'bmp', 'webp', 'ico']);
@@ -42,7 +44,7 @@ function parseCSV(text: string): string[][] {
   });
 }
 
-export default function FilePreview({ filename, url }: FilePreviewProps) {
+export default function FilePreview({ filename, url, username }: FilePreviewProps) {
   const [csvData, setCsvData] = useState<string[][] | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -123,7 +125,19 @@ export default function FilePreview({ filename, url }: FilePreviewProps) {
   }
 
   const type = getPreviewType(filename);
-  const canZoom = type === 'image' || type === 'pdf' || type === 'csv' || type === 'text';
+  const canZoom = type === 'image' || type === 'csv' || type === 'text';
+
+  if (type === 'pdf') {
+    return (
+      <div ref={containerRef} className="h-full flex flex-col">
+        <PdfAnnotatorWrapper
+          pdfUrl={url}
+          filename={filename}
+          username={username}
+        />
+      </div>
+    );
+  }
 
   const previewContent = (
     <div className="flex-1 min-h-0 overflow-auto flex flex-col">
@@ -136,33 +150,6 @@ export default function FilePreview({ filename, url }: FilePreviewProps) {
               className="max-w-full max-h-full object-contain rounded"
               style={{ transform: `scale(${zoom / 100})` }}
             />
-          </div>
-        ) : type === 'pdf' ? (
-          <div className="w-full h-full" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}>
-            <object
-              key={`pdf-${containerSize.width}-${containerSize.height}`}
-              data={url}
-              type="application/pdf"
-              className="w-full h-full flex-1"
-              style={{ width: `${100 / (zoom / 100)}%`, height: `${100 / (zoom / 100)}%` }}
-            >
-              <div className="w-full h-full flex items-center justify-center p-4 text-center bg-slate-50">
-                <div>
-                  <File size={32} className="mx-auto mb-3 text-slate-300" />
-                  <p className="text-xs text-slate-600 mb-2">PDF preview unavailable</p>
-                  <p className="text-[10px] text-slate-400 mb-4">Your browser cannot display PDFs inline</p>
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-500 transition-colors text-xs font-medium"
-                  >
-                    <Download size={12} />
-                    Open PDF
-                  </a>
-                </div>
-              </div>
-            </object>
           </div>
         ) : type === 'csv' && csvData ? (
           <div className="w-full h-full p-2 overflow-auto">

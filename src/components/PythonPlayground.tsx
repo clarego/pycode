@@ -606,6 +606,7 @@ Keep it concise - no more than 6-8 sentences total.`,
         <FilePreview
           filename={previewFile}
           url={previewFile && effectiveBinaryFiles ? effectiveBinaryFiles[previewFile] : null}
+          username={profile?.username}
         />
       }
       defaultRatio={0.5}
