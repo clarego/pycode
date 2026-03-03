@@ -462,13 +462,17 @@ export default function PdfAnnotator({
             src={iframeSrc}
             title={filename}
             className="absolute inset-0 w-full h-full border-0 block"
-            style={{ pointerEvents: readOnly ? 'auto' : 'none' }}
+            style={{ pointerEvents: 'auto' }}
           />
 
           <div
             ref={overlayRef}
-            className="absolute inset-0"
+            className="absolute"
             style={{
+              top: 0,
+              left: 0,
+              right: 17,
+              bottom: 17,
               cursor: readOnly ? 'default' : cursorStyle,
               pointerEvents: readOnly ? 'none' : 'auto',
             }}
