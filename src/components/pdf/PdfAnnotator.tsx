@@ -292,7 +292,9 @@ export default function PdfAnnotator({
       : 'default';
 
   const PDF_BASE_WIDTH = 850;
-  const PDF_BASE_HEIGHT = 5000;
+  const PDF_BASE_HEIGHT = 1100;
+
+  const iframeSrc = `${pdfUrl}#zoom=${zoom}&scrollbar=1&toolbar=1&navpanes=1`;
 
   return (
     <div
@@ -445,17 +447,19 @@ export default function PdfAnnotator({
 
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 overflow-auto bg-slate-200 p-4"
+        className="flex-1 min-h-0 overflow-auto bg-slate-200"
+        style={{ padding: scale > 1 ? '16px' : '0' }}
       >
         <div
           className="relative mx-auto shadow-xl bg-white"
           style={{
-            width: PDF_BASE_WIDTH * scale,
-            height: PDF_BASE_HEIGHT * scale,
+            width: scale > 1 ? PDF_BASE_WIDTH * scale : '100%',
+            height: scale > 1 ? PDF_BASE_HEIGHT * scale : '100%',
+            minHeight: scale <= 1 ? '100%' : undefined,
           }}
         >
           <iframe
-            src={pdfUrl}
+            src={iframeSrc}
             title={filename}
             className="absolute inset-0 w-full h-full border-0 block"
             style={{ pointerEvents: readOnly ? 'auto' : 'none' }}
