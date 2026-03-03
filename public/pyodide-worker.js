@@ -3647,13 +3647,8 @@ _flask_virtual_files = {}
       }
     }
 
-    const FLASK_TEMPLATE_EXTS = new Set(['html', 'htm', 'css', 'js', 'txt', 'xml', 'json']);
-    const flaskFiles = Object.entries(files).filter(([filename]) => {
-      const ext = filename.split('.').pop()?.toLowerCase() || '';
-      return FLASK_TEMPLATE_EXTS.has(ext) || filename.includes('templates/');
-    });
     let vfCode = '_flask_virtual_files = {\n';
-    for (const [filename, content] of flaskFiles) {
+    for (const [filename, content] of Object.entries(files)) {
       const escaped = sanitizeCode(content).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
       vfCode += `  '${filename}': '${escaped}',\n`;
     }
