@@ -663,7 +663,7 @@ Keep it concise - no more than 6-8 sentences total.`,
       right={codeArea}
       defaultRatio={hasBinaryFiles ? 0.22 : 0.18}
       minRatio={0.1}
-      maxRatio={0.4}
+      maxRatio={0.7}
     />
   );
 
