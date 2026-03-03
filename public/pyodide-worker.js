@@ -4,6 +4,7 @@ let stubsLoaded = false;
 let inputSharedBuffer = null;
 let inputSignalArray = null;
 let inputDataArray = null;
+let inputPromiseResolve = null;
 
 const PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/';
 
@@ -3664,7 +3665,9 @@ _flask_virtual_files = {}
     } else {
       self._syncInput = function(prompt) {
         self.postMessage({ type: 'input-request', prompt: prompt || '' });
-        return '';
+        return new Promise((resolve) => {
+          inputPromiseResolve = resolve;
+        });
       };
     }
 
@@ -3812,6 +3815,15 @@ self.onmessage = async (event) => {
 
   if (type === 'pygame-event') {
     handlePygameEvent(event.data.eventData);
+  }
+
+  if (type === 'input-response') {
+    if (inputPromiseResolve) {
+      const resolve = inputPromiseResolve;
+      inputPromiseResolve = null;
+      resolve(event.data.value || '');
+    }
+    return;
   }
 
   if (type === 'messagebox-response') {

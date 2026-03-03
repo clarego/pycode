@@ -292,18 +292,23 @@ export function usePyodide(options?: UsePyodideOptions): UsePyodideReturn {
   }, [createWorker]);
 
   const submitInput = useCallback((value: string) => {
-    if (!inputBufferRef.current || !inputRequest) return;
+    if (!inputRequest || !workerRef.current) return;
     const promptText = inputRequest.prompt || '';
     setOutput((prev) => [...prev, { type: 'input', text: promptText + value }]);
-    const signalArray = new Int32Array(inputBufferRef.current, 0, 2);
-    const dataArray = new Uint8Array(inputBufferRef.current, 8);
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(value);
-    dataArray.set(encoded);
-    signalArray[1] = encoded.length;
-    Atomics.store(signalArray, 0, 1);
-    Atomics.notify(signalArray, 0);
     setInputRequest(null);
+
+    if (inputBufferRef.current) {
+      const signalArray = new Int32Array(inputBufferRef.current, 0, 2);
+      const dataArray = new Uint8Array(inputBufferRef.current, 8);
+      const encoder = new TextEncoder();
+      const encoded = encoder.encode(value);
+      dataArray.set(encoded);
+      signalArray[1] = encoded.length;
+      Atomics.store(signalArray, 0, 1);
+      Atomics.notify(signalArray, 0);
+    } else {
+      workerRef.current.postMessage({ type: 'input-response', value });
+    }
   }, [inputRequest]);
 
   const clearOutput = useCallback(() => {
