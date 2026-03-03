@@ -667,6 +667,22 @@ Keep it concise - no more than 6-8 sentences total.`,
     />
   );
 
+  const codeEditorPane = (
+    <div className="flex flex-col h-full bg-white">
+      <FileTabs
+        files={files}
+        activeFile={activeFile}
+        onSelectFile={setActiveFile}
+        onAddFile={handleAddFile}
+        onRemoveFile={handleRemoveFile}
+        onRenameFile={handleRenameFile}
+      />
+      <div className="flex-1 min-h-0">
+        {codeArea}
+      </div>
+    </div>
+  );
+
   const editorPanel = (
     <div className="flex flex-col h-full bg-white">
       <FileTabs
@@ -997,12 +1013,42 @@ Keep it concise - no more than 6-8 sentences total.`,
       )}
 
       <div className="flex-1 min-h-0">
-        <ResizablePanel
-          left={editorPanel}
-          right={outputPanel}
-          direction={isMobile ? 'vertical' : 'horizontal'}
-          defaultRatio={0.55}
-        />
+        {isMobile ? (
+          <ResizablePanel
+            left={editorPanel}
+            right={outputPanel}
+            direction="vertical"
+            defaultRatio={0.55}
+          />
+        ) : fileManagerCollapsed ? (
+          <div className="flex h-full">
+            {collapsedSidebar}
+            <ResizablePanel
+              left={codeEditorPane}
+              right={outputPanel}
+              direction="horizontal"
+              defaultRatio={0.6}
+            />
+          </div>
+        ) : (
+          <div className="flex h-full">
+            <ResizablePanel
+              direction="horizontal"
+              left={fileSidebar}
+              right={
+                <ResizablePanel
+                  left={codeEditorPane}
+                  right={outputPanel}
+                  direction="horizontal"
+                  defaultRatio={0.6}
+                />
+              }
+              defaultRatio={hasBinaryFiles ? 0.22 : 0.18}
+              minRatio={0.1}
+              maxRatio={0.7}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between px-3 py-1 bg-slate-800 border-t border-slate-700">
