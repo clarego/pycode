@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, FolderOpen, Save, Trash2, Edit2, Check, Loader2, AlertCircle, Plus, Clock } from 'lucide-react';
+import { X, FolderOpen, Save, Trash2, CreditCard as Edit2, Check, Loader2, AlertCircle, Plus, Clock } from 'lucide-react';
 import { listSavedProjects, saveProject, deleteProject, loadBinaryFiles } from '../lib/savedProjects';
 import type { SavedProject } from '../lib/savedProjects';
 
