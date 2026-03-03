@@ -280,6 +280,33 @@ export default function PdfAnnotator({
   const zoomIn = () => setZoom((z) => Math.min(z + 25, 300));
   const zoomOut = () => setZoom((z) => Math.max(z - 25, 50));
 
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [pdfLoadError, setPdfLoadError] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    setPdfLoadError(false);
+    setBlobUrl(null);
+
+    async function fetchPdf() {
+      try {
+        const response = await fetch(pdfUrl);
+        if (!response.ok) throw new Error('Failed to fetch PDF');
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      } catch {
+        setPdfLoadError(true);
+      }
+    }
+
+    fetchPdf();
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [pdfUrl]);
+
   const scale = zoom / 100;
 
   const cursorStyle =
@@ -294,7 +321,7 @@ export default function PdfAnnotator({
   const PDF_BASE_WIDTH = 850;
   const PDF_BASE_HEIGHT = 1100;
 
-  const iframeSrc = `${pdfUrl}#zoom=${zoom}&scrollbar=1&toolbar=1&navpanes=1`;
+  const iframeSrc = blobUrl ? `${blobUrl}#zoom=${zoom}&scrollbar=1&toolbar=1&navpanes=1` : null;
 
   return (
     <div
@@ -458,12 +485,33 @@ export default function PdfAnnotator({
             minHeight: scale <= 1 ? '100%' : undefined,
           }}
         >
-          <iframe
-            src={iframeSrc}
-            title={filename}
-            className="absolute inset-0 w-full h-full border-0 block"
-            style={{ pointerEvents: 'auto' }}
-          />
+          {pdfLoadError ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 text-center px-4">
+              <p className="text-sm font-medium text-slate-600 mb-1">Could not load PDF</p>
+              <p className="text-xs text-slate-400 mb-3">The file could not be fetched. Try downloading it instead.</p>
+              <a
+                href={pdfUrl}
+                download={filename}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-500 transition-colors text-xs font-medium"
+              >
+                Download PDF
+              </a>
+            </div>
+          ) : !iframeSrc ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+              <div className="flex items-center gap-2 text-slate-400 text-sm">
+                <div className="w-4 h-4 border-2 border-slate-300 border-t-sky-500 rounded-full animate-spin" />
+                Loading PDF…
+              </div>
+            </div>
+          ) : (
+            <iframe
+              src={iframeSrc}
+              title={filename}
+              className="absolute inset-0 w-full h-full border-0 block"
+              style={{ pointerEvents: 'auto' }}
+            />
+          )}
 
           <div
             ref={overlayRef}
