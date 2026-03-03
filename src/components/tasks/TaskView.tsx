@@ -406,6 +406,9 @@ export default function TaskView({ shareCode }: TaskViewProps) {
                   onFilesChange={handleFilesChange}
                   onPasteDetected={handlePasteDetected}
                   binaryFiles={Object.keys(binaryFiles).length > 0 ? binaryFiles : undefined}
+                  profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+                  loading={false}
+                  logout={logout}
                 />
               )}
             </div>
@@ -482,6 +485,9 @@ export default function TaskView({ shareCode }: TaskViewProps) {
                     onFilesChange={handleFilesChange}
                     onPasteDetected={handlePasteDetected}
                     binaryFiles={Object.keys(binaryFiles).length > 0 ? binaryFiles : undefined}
+                    profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+                    loading={false}
+                    logout={logout}
                   />
                 )}
               </div>

@@ -4,10 +4,6 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
 
-const STANDALONE_URL = 'https://qfitpwdrswvnbmzvkoyd.supabase.co';
-const STANDALONE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmaXRwd2Ryc3d2bmJtenZrb3lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTc4NTIsImV4cCI6MjA3NjkzMzg1Mn0.owLaj3VrcyR7_LW9xMwOTTFQupbDKlvAlVwYtbidiNE';
-
 interface TaskFile {
   name: string;
   path: string;
@@ -26,21 +22,16 @@ interface Task {
 
 interface StudentUser {
   username: string;
-  is_admin: boolean;
 }
 
 async function fetchStudents(): Promise<StudentUser[]> {
-  const res = await fetch(
-    `${STANDALONE_URL}/rest/v1/users_login?select=username,is_admin&is_admin=eq.false&order=username.asc`,
-    {
-      headers: {
-        apikey: STANDALONE_ANON_KEY,
-        Authorization: `Bearer ${STANDALONE_ANON_KEY}`,
-      },
-    }
-  );
-  if (!res.ok) return [];
-  return res.json();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('username')
+    .neq('role', 'admin')
+    .order('username', { ascending: true });
+  if (error) return [];
+  return (data ?? []) as StudentUser[];
 }
 
 function AssignStudentsModal({ task, students, currentAssignments, onClose, onSave }: {
