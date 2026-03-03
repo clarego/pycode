@@ -398,7 +398,34 @@ export default function PythonPlayground({
   }, [profile, getSnapshots, activeFile, files, effectiveBinaryFiles, resetRecorder, onShowLogin]);
 
   const handleExplainError = useCallback(async (errorText: string, userCode?: string): Promise<string> => {
-    if (!apiKey) throw new Error('Login required to use the error explanation feature.');
+    if (!profile) throw new Error('Login required to use the error explanation feature.');
+
+    let resolvedKey = apiKey;
+
+    if (!resolvedKey) {
+      try {
+        const res = await fetch(
+          'https://qfitpwdrswvnbmzvkoyd.supabase.co/rest/v1/secrets?key_name=eq.OPENAI_API_KEY&select=key_value',
+          {
+            headers: {
+              apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmaXRwd2Ryc3d2bmJtenZrb3lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTc4NTIsImV4cCI6MjA3NjkzMzg1Mn0.owLaj3VrcyR7_LW9xMwOTTFQupbDKlvAlVwYtbidiNE',
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          resolvedKey = rows[0].key_value || '';
+          if (resolvedKey) {
+            localStorage.setItem('auth_api_key', resolvedKey);
+          }
+        }
+      } catch {
+        // ignore fetch errors
+      }
+    }
+
+    if (!resolvedKey) throw new Error('AI explanation is not configured. Please contact your administrator.');
 
     const codeSection = userCode
       ? `\n\nHere is the student's full code:\n\`\`\`python\n${userCode}\n\`\`\``
@@ -408,7 +435,7 @@ export default function PythonPlayground({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${resolvedKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -445,7 +472,7 @@ Keep it concise - no more than 6-8 sentences total.`,
     }
     const data = await res.json();
     return data.choices?.[0]?.message?.content?.trim() || 'No explanation available.';
-  }, [apiKey]);
+  }, [apiKey, profile]);
 
   const handleNotebookRunCode = useCallback(
     (code: string) => {
