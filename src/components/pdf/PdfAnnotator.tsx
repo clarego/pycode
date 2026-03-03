@@ -467,14 +467,13 @@ export default function PdfAnnotator({
 
           <div
             ref={overlayRef}
-            className="absolute"
+            className="absolute inset-0"
             style={{
-              top: 0,
-              left: 0,
-              right: 17,
-              bottom: 17,
-              cursor: readOnly ? 'default' : cursorStyle,
-              pointerEvents: readOnly ? 'none' : 'auto',
+              cursor: cursorStyle,
+              pointerEvents:
+                readOnly || tool === 'select'
+                  ? 'none'
+                  : 'auto',
             }}
             onMouseDown={handleOverlayMouseDown}
           >
@@ -485,6 +484,7 @@ export default function PdfAnnotator({
                 height: PDF_BASE_HEIGHT,
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
+                pointerEvents: 'none',
               }}
             >
               {state.drawings.map((path) => (
@@ -497,7 +497,7 @@ export default function PdfAnnotator({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   className={selectedId === path.id ? 'opacity-80' : ''}
-                  style={{ cursor: readOnly ? 'default' : 'pointer' }}
+                  style={{ cursor: readOnly ? 'default' : 'pointer', pointerEvents: readOnly ? 'none' : 'auto' }}
                   onClick={(e) => {
                     if (readOnly) return;
                     e.stopPropagation();
@@ -526,13 +526,14 @@ export default function PdfAnnotator({
                 transformOrigin: 'top left',
                 width: PDF_BASE_WIDTH,
                 height: PDF_BASE_HEIGHT,
+                pointerEvents: 'none',
               }}
             >
               {state.images.map((img) => (
                 <div
                   key={img.id}
                   className={`absolute group ${!readOnly && selectedId === img.id ? 'ring-2 ring-sky-400' : ''}`}
-                  style={{ left: img.x, top: img.y, width: img.width, height: img.height }}
+                  style={{ left: img.x, top: img.y, width: img.width, height: img.height, pointerEvents: readOnly ? 'none' : 'auto' }}
                   onMouseDown={(e) => {
                     if (readOnly) return;
                     e.stopPropagation();
@@ -584,7 +585,7 @@ export default function PdfAnnotator({
                       ? 'ring-1 ring-sky-200'
                       : 'ring-1 ring-dashed ring-slate-300'
                   }`}
-                  style={{ left: tb.x, top: tb.y, width: tb.width, height: tb.height }}
+                  style={{ left: tb.x, top: tb.y, width: tb.width, height: tb.height, pointerEvents: readOnly ? 'none' : 'auto' }}
                   onMouseDown={(e) => {
                     if (readOnly) return;
                     e.stopPropagation();
