@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Send, CheckCircle2, ClipboardList, LogOut, AlertCircle, Clock, MessageSquare, ChevronDown, List } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, ClipboardList, LogOut, AlertCircle, Clock, MessageSquare, ChevronDown, List, BookOpen, Code2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { saveSession } from '../../lib/sessions';
@@ -67,9 +67,18 @@ export default function TaskView({ shareCode }: TaskViewProps) {
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [assignedTasks, setAssignedTasks] = useState<AssignedTaskItem[]>([]);
   const [showTasksDropdown, setShowTasksDropdown] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'instructions' | 'editor'>('instructions');
   const currentFilesRef = useRef<Record<string, string>>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { updateFiles, getSnapshots, recordEvent, getRedFlags } = useSessionRecorder();
+
+  useEffect(() => {
+    function check() { setIsMobile(window.innerWidth < 768); }
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const handleFilesChange = useCallback((files: Record<string, string>, activeFile: string) => {
     currentFilesRef.current = files;
@@ -315,39 +324,39 @@ export default function TaskView({ shareCode }: TaskViewProps) {
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
-      <header className="flex items-center justify-between px-4 py-2.5 bg-slate-800 border-b border-slate-700 shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-3 py-2 bg-slate-800 border-b border-slate-700 shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <a
             href="https://digitalvector.com.au"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center hover:opacity-80 transition-opacity"
+            className="flex items-center hover:opacity-80 transition-opacity shrink-0"
           >
-            <img src="/digivec_logo.png" alt="Digital Vector" className="h-6" />
+            <img src="/digivec_logo.png" alt="Digital Vector" className="h-5" />
           </a>
-          <div className="w-px h-4 bg-slate-600" />
-          <ClipboardList size={14} className="text-sky-400" />
-          <span className="text-sm font-semibold text-white truncate max-w-xs">{task?.title}</span>
+          <div className="w-px h-4 bg-slate-600 shrink-0" />
+          <ClipboardList size={13} className="text-sky-400 shrink-0" />
+          <span className="text-xs font-semibold text-white truncate">{task?.title}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {submission && (
-            <span className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full ${
+            <span className={`hidden sm:flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full ${
               submission.reviewed
                 ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700'
                 : 'bg-amber-900/40 text-amber-300 border border-amber-700'
             }`}>
               {submission.reviewed ? <CheckCircle2 size={9} /> : <Clock size={9} />}
-              {submission.reviewed ? 'Reviewed' : 'Pending review'}
+              {submission.reviewed ? 'Reviewed' : 'Pending'}
             </span>
           )}
           {assignedTasks.length > 0 && (
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowTasksDropdown(!showTasksDropdown)}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
               >
                 <List size={12} />
-                <span>My Tasks</span>
+                <span className="hidden sm:inline">My Tasks</span>
                 <ChevronDown size={10} className={`transition-transform ${showTasksDropdown ? 'rotate-180' : ''}`} />
               </button>
               {showTasksDropdown && (
@@ -379,7 +388,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
               )}
             </div>
           )}
-          <span className="text-xs text-slate-400">{user?.username}</span>
+          <span className="hidden sm:block text-xs text-slate-400">{user?.username}</span>
           <button
             onClick={logout}
             className="flex items-center gap-1 px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
@@ -389,52 +398,16 @@ export default function TaskView({ shareCode }: TaskViewProps) {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0">
-        {panelCollapsed ? (
-          <div className="h-full relative">
-            <button
-              onClick={() => setPanelCollapsed(false)}
-              className="absolute top-2 left-2 z-10 px-2 py-1 text-[10px] text-slate-500 hover:text-slate-700 bg-white/80 hover:bg-white border border-slate-200 rounded-md transition-colors backdrop-blur-sm"
-            >
-              Show Task
-            </button>
-            <div className="h-full">
-              {initialFiles && (
-                <PythonPlayground
-                  embedded
-                  initialFiles={initialFiles}
-                  onFilesChange={handleFilesChange}
-                  onPasteDetected={handlePasteDetected}
-                  binaryFiles={Object.keys(binaryFiles).length > 0 ? binaryFiles : undefined}
-                  profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
-                  loading={false}
-                  logout={logout}
-                />
-              )}
-            </div>
-          </div>
-        ) : (
-          <ResizablePanel
-            direction="horizontal"
-            defaultRatio={0.22}
-            minRatio={0.15}
-            maxRatio={0.4}
-            left={
-              <div className="h-full bg-white border-r border-slate-200 flex flex-col">
-                <div className="flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
-                  <h2 className="text-sm font-bold text-slate-800">Task Instructions</h2>
-                  <button
-                    onClick={() => setPanelCollapsed(true)}
-                    className="px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
-                  >
-                    Hide
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto px-4 pb-4">
+      {isMobile ? (
+        <>
+          <div className="flex-1 min-h-0 relative">
+            <div className={`absolute inset-0 ${mobileTab === 'instructions' ? 'block' : 'hidden'}`}>
+              <div className="h-full bg-white flex flex-col">
+                <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
                   {task?.description ? (
-                    <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{task.description}</p>
+                    <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{task.description}</p>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No instructions provided.</p>
+                    <p className="text-sm text-slate-400 italic">No instructions provided.</p>
                   )}
                   {submission?.feedback && (
                     <div className={`mt-4 p-3 rounded-lg border ${
@@ -450,7 +423,7 @@ export default function TaskView({ shareCode }: TaskViewProps) {
                           Teacher Feedback
                         </span>
                       </div>
-                      <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{submission.feedback}</p>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{submission.feedback}</p>
                     </div>
                   )}
                 </div>
@@ -461,22 +434,64 @@ export default function TaskView({ shareCode }: TaskViewProps) {
                   <button
                     onClick={handleSubmit}
                     disabled={submitting}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-xl transition-colors"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-300 text-white text-sm font-semibold rounded-xl transition-colors"
                   >
-                    {submitting ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <Send size={15} />
-                    )}
-                    {submitting ? 'Submitting...' : submission ? 'Resubmit' : 'Submit'}
+                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                    {submitting ? 'Submitting...' : submission ? 'Resubmit' : 'Submit Work'}
                   </button>
-                  <p className="text-[10px] text-slate-400 text-center mt-1.5">
-                    All files in the editor will be submitted
-                  </p>
                 </div>
               </div>
-            }
-            right={
+            </div>
+            <div className={`absolute inset-0 ${mobileTab === 'editor' ? 'block' : 'hidden'}`}>
+              {initialFiles && (
+                <PythonPlayground
+                  embedded
+                  initialFiles={initialFiles}
+                  onFilesChange={handleFilesChange}
+                  onPasteDetected={handlePasteDetected}
+                  binaryFiles={Object.keys(binaryFiles).length > 0 ? binaryFiles : undefined}
+                  profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+                  loading={false}
+                  logout={logout}
+                />
+              )}
+            </div>
+          </div>
+          <nav className="shrink-0 flex bg-white border-t border-slate-200 safe-area-inset-bottom">
+            <button
+              onClick={() => setMobileTab('instructions')}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors ${
+                mobileTab === 'instructions'
+                  ? 'text-sky-600 border-t-2 border-sky-500'
+                  : 'text-slate-400 border-t-2 border-transparent'
+              }`}
+            >
+              <BookOpen size={18} />
+              Instructions
+            </button>
+            <button
+              onClick={() => setMobileTab('editor')}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors ${
+                mobileTab === 'editor'
+                  ? 'text-sky-600 border-t-2 border-sky-500'
+                  : 'text-slate-400 border-t-2 border-transparent'
+              }`}
+            >
+              <Code2 size={18} />
+              Editor
+            </button>
+          </nav>
+        </>
+      ) : (
+        <div className="flex-1 min-h-0">
+          {panelCollapsed ? (
+            <div className="h-full relative">
+              <button
+                onClick={() => setPanelCollapsed(false)}
+                className="absolute top-2 left-2 z-10 px-2 py-1 text-[10px] text-slate-500 hover:text-slate-700 bg-white/80 hover:bg-white border border-slate-200 rounded-md transition-colors backdrop-blur-sm"
+              >
+                Show Task
+              </button>
               <div className="h-full">
                 {initialFiles && (
                   <PythonPlayground
@@ -491,10 +506,90 @@ export default function TaskView({ shareCode }: TaskViewProps) {
                   />
                 )}
               </div>
-            }
-          />
-        )}
-      </div>
+            </div>
+          ) : (
+            <ResizablePanel
+              direction="horizontal"
+              defaultRatio={0.22}
+              minRatio={0.15}
+              maxRatio={0.4}
+              left={
+                <div className="h-full bg-white border-r border-slate-200 flex flex-col">
+                  <div className="flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
+                    <h2 className="text-sm font-bold text-slate-800">Task Instructions</h2>
+                    <button
+                      onClick={() => setPanelCollapsed(true)}
+                      className="px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-4 pb-4">
+                    {task?.description ? (
+                      <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{task.description}</p>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No instructions provided.</p>
+                    )}
+                    {submission?.feedback && (
+                      <div className={`mt-4 p-3 rounded-lg border ${
+                        submission.reviewed
+                          ? 'bg-emerald-50 border-emerald-200'
+                          : 'bg-sky-50 border-sky-200'
+                      }`}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <MessageSquare size={12} className={submission.reviewed ? 'text-emerald-600' : 'text-sky-600'} />
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                            submission.reviewed ? 'text-emerald-700' : 'text-sky-700'
+                          }`}>
+                            Teacher Feedback
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{submission.feedback}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3 border-t border-slate-100 shrink-0">
+                    {error && (
+                      <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>
+                    )}
+                    <button
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-xl transition-colors"
+                    >
+                      {submitting ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <Send size={15} />
+                      )}
+                      {submitting ? 'Submitting...' : submission ? 'Resubmit' : 'Submit'}
+                    </button>
+                    <p className="text-[10px] text-slate-400 text-center mt-1.5">
+                      All files in the editor will be submitted
+                    </p>
+                  </div>
+                </div>
+              }
+              right={
+                <div className="h-full">
+                  {initialFiles && (
+                    <PythonPlayground
+                      embedded
+                      initialFiles={initialFiles}
+                      onFilesChange={handleFilesChange}
+                      onPasteDetected={handlePasteDetected}
+                      binaryFiles={Object.keys(binaryFiles).length > 0 ? binaryFiles : undefined}
+                      profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+                      loading={false}
+                      logout={logout}
+                    />
+                  )}
+                </div>
+              }
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
