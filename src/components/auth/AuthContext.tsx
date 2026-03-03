@@ -74,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearAuthCache();
     setUser(null);
     setApiKey('');
+    window.history.pushState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
   }, []);
 
   useEffect(() => {
