@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, FolderOpen, Save, Trash2, Edit2, Check, Loader2, AlertCircle, Plus, Clock } from 'lucide-react';
-import { listSavedProjects, saveProject, deleteProject } from '../lib/savedProjects';
+import { listSavedProjects, saveProject, deleteProject, loadBinaryFiles } from '../lib/savedProjects';
 import type { SavedProject } from '../lib/savedProjects';
 
 type Mode = 'open' | 'save';
@@ -10,7 +10,8 @@ interface SavedProjectsDialogProps {
   username: string;
   currentFiles: Record<string, string>;
   currentActiveFile: string;
-  onLoad: (files: Record<string, string>, activeFile: string) => void;
+  currentBinaryFiles?: Record<string, string>;
+  onLoad: (files: Record<string, string>, activeFile: string, binaryFiles?: Record<string, string>) => void;
   onClose: () => void;
 }
 
@@ -30,12 +31,14 @@ export default function SavedProjectsDialog({
   username,
   currentFiles,
   currentActiveFile,
+  currentBinaryFiles,
   onLoad,
   onClose,
 }: SavedProjectsDialogProps) {
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [saveName, setSaveName] = useState('Untitled Project');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export default function SavedProjectsDialog({
     setSaving(true);
     setError('');
     try {
-      const saved = await saveProject(username, saveName.trim(), currentFiles, currentActiveFile);
+      const saved = await saveProject(username, saveName.trim(), currentFiles, currentActiveFile, undefined, currentBinaryFiles);
       setProjects((prev) => [saved, ...prev]);
       onClose();
     } catch (e) {
@@ -182,11 +185,21 @@ export default function SavedProjectsDialog({
                 <div
                   key={project.id}
                   className="group flex items-center gap-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 hover:border-slate-500 rounded-lg px-3 py-2.5 transition-colors cursor-pointer"
-                  onClick={() => {
+                  onClick={async () => {
                     if (renamingId === project.id) return;
-                    if (mode === 'open') {
-                      onLoad(project.files as Record<string, string>, project.active_file);
-                      onClose();
+                    if (mode === 'open' && openingId !== project.id) {
+                      setOpeningId(project.id);
+                      try {
+                        const binaryPaths = project.binary_files ?? {};
+                        const binaryUrls = Object.keys(binaryPaths).length > 0
+                          ? await loadBinaryFiles(binaryPaths)
+                          : {};
+                        onLoad(project.files as Record<string, string>, project.active_file, binaryUrls);
+                        onClose();
+                      } catch {
+                        setError('Failed to load project files.');
+                        setOpeningId(null);
+                      }
                     }
                   }}
                 >
@@ -259,9 +272,12 @@ export default function SavedProjectsDialog({
                   </div>
 
                   {mode === 'open' && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-                      <Plus size={14} className="text-sky-400 rotate-45 hidden" />
-                      <FolderOpen size={14} className="text-sky-400" />
+                    <div className="ml-1">
+                      {openingId === project.id ? (
+                        <Loader2 size={14} className="text-sky-400 animate-spin" />
+                      ) : (
+                        <FolderOpen size={14} className="text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
                     </div>
                   )}
                 </div>

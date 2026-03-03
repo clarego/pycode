@@ -889,6 +889,7 @@ Keep it concise - no more than 6-8 sentences total.`,
             username={profile.username}
             currentFiles={files}
             currentActiveFile={activeFile}
+            currentBinaryFiles={effectiveBinaryFiles}
             onLoad={() => {}}
             onClose={() => setShowSaveDialog(false)}
           />
@@ -899,9 +900,11 @@ Keep it concise - no more than 6-8 sentences total.`,
             username={profile.username}
             currentFiles={files}
             currentActiveFile={activeFile}
-            onLoad={(loadedFiles, loadedActive) => {
+            currentBinaryFiles={effectiveBinaryFiles}
+            onLoad={(loadedFiles, loadedActive, loadedBinary) => {
               setFiles(loadedFiles);
               setActiveFile(loadedActive);
+              if (loadedBinary) setLocalBinaryFiles(loadedBinary);
               clearOutput();
             }}
             onClose={() => setShowOpenDialog(false)}
@@ -1126,6 +1129,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           username={profile.username}
           currentFiles={files}
           currentActiveFile={activeFile}
+          currentBinaryFiles={effectiveBinaryFiles}
           onLoad={() => {}}
           onClose={() => {
             setShowSaveDialog(false);
@@ -1140,9 +1144,11 @@ Keep it concise - no more than 6-8 sentences total.`,
           username={profile.username}
           currentFiles={files}
           currentActiveFile={activeFile}
-          onLoad={(loadedFiles, loadedActive) => {
+          currentBinaryFiles={effectiveBinaryFiles}
+          onLoad={(loadedFiles, loadedActive, loadedBinary) => {
             setFiles(loadedFiles);
             setActiveFile(loadedActive);
+            if (loadedBinary) setLocalBinaryFiles(loadedBinary);
             clearOutput();
             setToast({ message: 'Project loaded!', type: 'success' });
           }}
