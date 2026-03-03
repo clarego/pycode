@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus } from 'lucide-react';
+import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
@@ -141,6 +141,220 @@ function AssignStudentsModal({ task, students, currentAssignments, onClose, onSa
   );
 }
 
+function EditTaskModal({ task, students, currentAssignments, onClose, onSave }: {
+  task: Task;
+  students: StudentUser[];
+  currentAssignments: string[];
+  onClose: () => void;
+  onSave: (taskId: string, updates: { title: string; description: string }, newFiles: File[], removedPaths: string[], selectedStudents: string[]) => Promise<void>;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description || '');
+  const [existingFiles, setExistingFiles] = useState<TaskFile[]>(
+    task.task_files?.length > 0 ? task.task_files : task.file_name ? [{ name: task.file_name, path: task.file_path! }] : []
+  );
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [removedPaths, setRemovedPaths] = useState<string[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set(currentAssignments));
+  const [saving, setSaving] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleStudent = (username: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(username)) next.delete(username);
+      else next.add(username);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selected.size === students.length) setSelected(new Set());
+    else setSelected(new Set(students.map(s => s.username)));
+  };
+
+  const addFiles = (incoming: FileList | File[]) => {
+    const arr = Array.from(incoming);
+    setNewFiles(prev => {
+      const existingNames = new Set([...existingFiles.map(f => f.name), ...prev.map(f => f.name)]);
+      return [...prev, ...arr.filter(f => !existingNames.has(f.name))];
+    });
+  };
+
+  const removeExisting = (path: string) => {
+    setExistingFiles(prev => prev.filter(f => f.path !== path));
+    setRemovedPaths(prev => [...prev, path]);
+  };
+
+  const removeNew = (index: number) => {
+    setNewFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (dropRef.current && !dropRef.current.contains(e.relatedTarget as Node)) setDragging(false);
+  };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation(); setDragging(false);
+    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    await onSave(task.id, { title: title.trim(), description: description.trim() }, newFiles, removedPaths, Array.from(selected));
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-2">
+            <Pencil size={15} className="text-slate-600" />
+            <span className="text-sm font-semibold text-slate-700">Edit Task</span>
+          </div>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 resize-y"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-slate-600">Assign to Students</label>
+              <button type="button" onClick={selectAll} className="text-[10px] text-sky-600 hover:text-sky-700 font-medium">
+                {selected.size === students.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+            {students.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No students found</p>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-lg max-h-36 overflow-y-auto p-1">
+                {students.map(s => (
+                  <label
+                    key={s.username}
+                    className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+                      selected.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(s.username)}
+                      onChange={() => toggleStudent(s.username)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
+                    />
+                    <span className="text-xs text-slate-700">{s.username}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {selected.size > 0 && (
+              <p className="text-[10px] text-slate-400 mt-1">{selected.size} student{selected.size !== 1 ? 's' : ''} selected</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Attachments</label>
+            {existingFiles.length > 0 && (
+              <div className="mb-2 space-y-1">
+                {existingFiles.map(f => (
+                  <div key={f.path} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg group">
+                    <FileText size={13} className="text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-700 truncate flex-1">{f.name}</span>
+                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">saved</span>
+                    <button
+                      type="button"
+                      onClick={() => removeExisting(f.path)}
+                      className="p-0.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div
+              ref={dropRef}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative flex items-center justify-center gap-2 px-4 py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
+                dragging ? 'border-sky-400 bg-sky-50/80' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+              }`}
+            >
+              <Upload size={14} className={dragging ? 'text-sky-500' : 'text-slate-400'} />
+              <span className="text-xs text-slate-500">Add more files</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }}
+                className="hidden"
+              />
+            </div>
+
+            {newFiles.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {newFiles.map((f, i) => (
+                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg group">
+                    <FileText size={13} className="text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-700 truncate flex-1">{f.name}</span>
+                    <span className="text-[10px] text-slate-400">{(f.size / 1024).toFixed(1)} KB</span>
+                    <button type="button" onClick={() => removeNew(i)} className="p-0.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-slate-200">
+          <button
+            onClick={handleSave}
+            disabled={saving || !title.trim()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskManager() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -159,6 +373,7 @@ export default function TaskManager() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [assignmentsMap, setAssignmentsMap] = useState<Record<string, string[]>>({});
   const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
+  const [editModalTask, setEditModalTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
     const [{ data: taskData }, { data: assignData }] = await Promise.all([
@@ -291,6 +506,48 @@ export default function TaskManager() {
         .insert(toAdd.map(sid => ({ task_id: taskId, student_id: sid })));
     }
     await fetchTasks();
+  };
+
+  const handleUpdate = async (
+    taskId: string,
+    updates: { title: string; description: string },
+    newFiles: File[],
+    removedPaths: string[],
+    selectedStudents: string[]
+  ) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      if (removedPaths.length > 0) {
+        await supabase.storage.from('task-files').remove(removedPaths);
+      }
+
+      const keptFiles = (task.task_files?.length > 0 ? task.task_files : task.file_name ? [{ name: task.file_name, path: task.file_path! }] : [])
+        .filter(f => !removedPaths.includes(f.path));
+
+      const uploadedFiles: TaskFile[] = [];
+      for (const file of newFiles) {
+        const storagePath = `${task.share_code}/${file.name}`;
+        const { error: uploadErr } = await supabase.storage.from('task-files').upload(storagePath, file, { upsert: true });
+        if (uploadErr) throw uploadErr;
+        uploadedFiles.push({ name: file.name, path: storagePath });
+      }
+
+      const allFiles = [...keptFiles, ...uploadedFiles];
+
+      await supabase.from('tasks').update({
+        title: updates.title,
+        description: updates.description,
+        task_files: allFiles,
+        file_name: allFiles.length === 1 ? allFiles[0].name : null,
+        file_path: allFiles.length === 1 ? allFiles[0].path : null,
+      }).eq('id', taskId);
+
+      await handleSaveAssignments(taskId, selectedStudents);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update task');
+    }
   };
 
   const handleDelete = async (task: Task) => {
@@ -563,6 +820,13 @@ export default function TaskManager() {
                     Open
                   </a>
                   <button
+                    onClick={() => setEditModalTask(task)}
+                    className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
+                    title="Edit task"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
                     onClick={() => handleDelete(task)}
                     className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
@@ -587,6 +851,16 @@ export default function TaskManager() {
           currentAssignments={assignmentsMap[assignModalTask.id] || []}
           onClose={() => setAssignModalTask(null)}
           onSave={handleSaveAssignments}
+        />
+      )}
+
+      {editModalTask && (
+        <EditTaskModal
+          task={editModalTask}
+          students={students}
+          currentAssignments={assignmentsMap[editModalTask.id] || []}
+          onClose={() => setEditModalTask(null)}
+          onSave={handleUpdate}
         />
       )}
     </div>
