@@ -3410,6 +3410,24 @@ async function initPyodide() {
   return pyodide;
 }
 
+function transformInputToAwait(code) {
+  const lines = code.split('\n');
+  const result = [];
+  for (const line of lines) {
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('#') || trimmed.startsWith('"""') || trimmed.startsWith("'''")) {
+      result.push(line);
+      continue;
+    }
+    let transformed = line;
+    if (/(?<![a-zA-Z0-9_])input\s*\(/.test(line) && !/^\s*await\s+/.test(line)) {
+      transformed = line.replace(/(?<![a-zA-Z0-9_])(input\s*\()/g, 'await $1');
+    }
+    result.push(transformed);
+  }
+  return result.join('\n');
+}
+
 function transformPygameCode(code) {
   if (!codeNeedsPackage(code, 'pygame')) {
     return code;
@@ -3652,6 +3670,8 @@ _flask_virtual_files = {}
     self.postMessage({ type: 'status', text: '' });
     self.postMessage({ type: 'execution-start' });
 
+    const useAsyncInput = !inputSignalArray;
+
     if (inputSignalArray) {
       self._syncInput = function(prompt) {
         self.postMessage({ type: 'input-request', prompt: prompt || '' });
@@ -3663,7 +3683,7 @@ _flask_virtual_files = {}
         return decoder.decode(bytes);
       };
     } else {
-      self._syncInput = function(prompt) {
+      self._asyncInput = function(prompt) {
         self.postMessage({ type: 'input-request', prompt: prompt || '' });
         return new Promise((resolve) => {
           inputPromiseResolve = resolve;
@@ -3671,7 +3691,8 @@ _flask_virtual_files = {}
       };
     }
 
-    await py.runPythonAsync(`
+    if (inputSignalArray) {
+      await py.runPythonAsync(`
 import builtins as _builtins
 import sys
 import io
@@ -3706,9 +3727,24 @@ class _StdinWrapper(io.RawIOBase):
 
 sys.stdin = io.TextIOWrapper(_StdinWrapper(), encoding='utf-8', line_buffering=True)
 `);
+    } else {
+      await py.runPythonAsync(`
+import builtins as _builtins
+import sys
+import io
+from js import self as _js_self
+
+async def __async_input__(prompt=''):
+    result = await _js_self._asyncInput(str(prompt) if prompt else '')
+    return str(result)
+
+_builtins.input = __async_input__
+`);
+    }
 
     const execCode = transformPygameCode(mainCode);
-    await py.runPythonAsync(execCode);
+    const finalCode = useAsyncInput ? transformInputToAwait(execCode) : execCode;
+    await py.runPythonAsync(finalCode);
 
     try {
       await py.runPythonAsync(`
