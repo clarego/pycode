@@ -116,9 +116,11 @@ export default function Toolbar({
   return (
     <div className="flex flex-col bg-slate-800 border-b border-slate-700">
       {/* Branding row */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-0.5 border-b border-slate-700/60">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-0.5 border-b border-slate-700/60 overflow-visible">
         <a href="/" className="flex items-center gap-2 sm:gap-3 shrink-0 group">
-          <img src="/pycode_logo.png" alt="PyCode" className="h-8 sm:h-10 w-auto" />
+          <div className="h-8 sm:h-10 flex items-center overflow-visible">
+            <img src="/pycode_logo.png" alt="PyCode" className="h-16 sm:h-20 w-auto" />
+          </div>
           <div className="hidden sm:flex flex-col leading-tight">
             <span className="text-base font-bold text-white tracking-tight">PyCode</span>
             <span className="text-[11px] text-slate-400 tracking-wide">Online Python Compiler</span>
