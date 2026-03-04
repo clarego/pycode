@@ -62,6 +62,7 @@ interface ToolbarProps {
   onSaveProject?: () => void;
   onOpenProject?: () => void;
   onShowSubmissions?: () => void;
+  headerSlot?: React.ReactNode;
 }
 
 export default function Toolbar({
@@ -93,6 +94,7 @@ export default function Toolbar({
   onSaveProject,
   onOpenProject,
   onShowSubmissions,
+  headerSlot,
 }: ToolbarProps) {
   const { darkMode, hackerMode, toggleDarkMode, toggleHackerMode } = useTheme();
   const [showExamples, setShowExamples] = useState(false);
@@ -126,6 +128,7 @@ export default function Toolbar({
             <span className="text-[11px] text-slate-400 tracking-wide">Online Python Compiler</span>
           </div>
         </a>
+        {headerSlot}
 
         <div className="flex items-center gap-2">
           <span className="hidden lg:inline-flex items-center px-2.5 py-1 bg-sky-900/40 text-sky-300 text-xs font-medium rounded-full border border-sky-700/50">

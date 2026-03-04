@@ -871,6 +871,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           apiKeyLoaded={!!apiKey}
           onSaveProject={profile ? () => setShowSaveDialog(true) : undefined}
           onOpenProject={profile ? () => setShowOpenDialog(true) : undefined}
+          headerSlot={headerSlot}
         />
         <div className="flex-1 min-h-0">
           <ResizablePanel
