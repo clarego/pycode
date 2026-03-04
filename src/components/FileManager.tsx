@@ -130,6 +130,13 @@ interface TreeItemProps {
   onCancelRename: () => void;
   fileCount: number;
   onContextMenu: (e: React.MouseEvent, path: string, isFolder: boolean) => void;
+  draggedPath: string | null;
+  dragOverTarget: string | null;
+  onDragStart: (e: React.DragEvent, path: string) => void;
+  onDragOver: (e: React.DragEvent, target: string) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent, target: string) => void;
+  onDragEnd: () => void;
 }
 
 function RenameInput({
@@ -183,19 +190,49 @@ function TreeItem({
   onCancelRename,
   fileCount,
   onContextMenu,
+  draggedPath,
+  dragOverTarget,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: TreeItemProps) {
   const isExpanded = expandedFolders.has(node.path);
   const isCodeActive = !node.isFolder && !node.isBinary && node.path === activeFile;
   const isPreviewActive = !node.isFolder && node.isBinary && node.path === previewFile;
   const isRenaming = renamingPath === node.path;
+  const isDragging = draggedPath === node.path;
+  const isDropTarget = dragOverTarget === node.path;
+
+  const isAncestorOfDragged =
+    draggedPath !== null && node.isFolder && draggedPath.startsWith(node.path + '/');
 
   if (node.isFolder) {
     return (
       <div>
         <button
+          draggable
           onClick={() => onToggleFolder(node.path)}
           onContextMenu={(e) => onContextMenu(e, node.path, true)}
-          className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+          onDragStart={(e) => onDragStart(e, node.path)}
+          onDragOver={(e) => {
+            if (draggedPath === node.path || isAncestorOfDragged) return;
+            onDragOver(e, node.path);
+          }}
+          onDragLeave={onDragLeave}
+          onDrop={(e) => {
+            if (draggedPath === node.path || isAncestorOfDragged) return;
+            onDrop(e, node.path);
+          }}
+          onDragEnd={onDragEnd}
+          className={`w-full flex items-center gap-1.5 px-2 py-1 text-xs transition-colors ${
+            isDragging
+              ? 'opacity-40'
+              : isDropTarget
+                ? 'bg-sky-100 ring-1 ring-sky-400 ring-inset'
+                : 'text-slate-600 hover:bg-slate-100'
+          }`}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           {isExpanded ? (
@@ -206,7 +243,7 @@ function TreeItem({
           {isExpanded ? (
             <FolderOpen size={14} className="text-amber-500 flex-shrink-0" />
           ) : (
-            <Folder size={14} className="text-amber-500 flex-shrink-0" />
+            <Folder size={14} className={`flex-shrink-0 ${isDropTarget ? 'text-sky-500' : 'text-amber-500'}`} />
           )}
           <span className="truncate font-medium">{node.name}</span>
         </button>
@@ -228,6 +265,13 @@ function TreeItem({
             onCancelRename={onCancelRename}
             fileCount={fileCount}
             onContextMenu={onContextMenu}
+            draggedPath={draggedPath}
+            dragOverTarget={dragOverTarget}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            onDragEnd={onDragEnd}
           />
         ))}
       </div>
@@ -266,6 +310,7 @@ function TreeItem({
 
   return (
     <button
+      draggable
       onClick={handleClick}
       onDoubleClick={(e) => {
         if (node.isBinary) return;
@@ -276,12 +321,16 @@ function TreeItem({
         if (node.isBinary) return;
         onContextMenu(e, node.path, false);
       }}
+      onDragStart={(e) => onDragStart(e, node.path)}
+      onDragEnd={onDragEnd}
       className={`group w-full flex items-center gap-1.5 px-2 py-1 text-xs transition-colors ${
-        isPreviewActive
-          ? 'bg-teal-50 text-teal-700 border-r-2 border-teal-500'
-          : isCodeActive
-            ? 'bg-sky-50 text-sky-700 border-r-2 border-sky-500'
-            : 'text-slate-600 hover:bg-slate-100'
+        isDragging
+          ? 'opacity-40'
+          : isPreviewActive
+            ? 'bg-teal-50 text-teal-700 border-r-2 border-teal-500'
+            : isCodeActive
+              ? 'bg-sky-50 text-sky-700 border-r-2 border-sky-500'
+              : 'text-slate-600 hover:bg-slate-100'
       }`}
       style={{ paddingLeft: `${depth * 12 + 20}px` }}
     >
@@ -349,8 +398,11 @@ export default function FileManager({
   const [newName, setNewName] = useState('');
   const [createError, setCreateError] = useState('');
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null);
+  const [draggedPath, setDraggedPath] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const dragLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const binaryFilenames = binaryFiles ? Object.keys(binaryFiles) : [];
   const tree = buildTree(files, binaryFilenames);
@@ -482,6 +534,115 @@ export default function FileManager({
     onPreviewFile?.(path);
   };
 
+  function getParentFolder(path: string): string {
+    const idx = path.lastIndexOf('/');
+    return idx === -1 ? '' : path.substring(0, idx);
+  }
+
+  function getBaseName(path: string): string {
+    return path.includes('/') ? path.substring(path.lastIndexOf('/') + 1) : path;
+  }
+
+  function getAllFilesUnder(folderPath: string): string[] {
+    const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
+    return allFilePaths.filter((p) => p.startsWith(folderPath + '/'));
+  }
+
+  function isFolder(path: string): boolean {
+    const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
+    return allFilePaths.some((p) => p.startsWith(path + '/'));
+  }
+
+  function handleDragStart(e: React.DragEvent, path: string) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', path);
+    setDraggedPath(path);
+  }
+
+  function handleDragOver(e: React.DragEvent, target: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragLeaveTimer.current) {
+      clearTimeout(dragLeaveTimer.current);
+      dragLeaveTimer.current = null;
+    }
+    setDragOverTarget(target);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.stopPropagation();
+    dragLeaveTimer.current = setTimeout(() => {
+      setDragOverTarget(null);
+    }, 50);
+  }
+
+  function handleDragEnd() {
+    setDraggedPath(null);
+    setDragOverTarget(null);
+  }
+
+  function performMove(sourcePath: string, targetFolder: string) {
+    const name = getBaseName(sourcePath);
+    const newPath = targetFolder ? targetFolder + '/' + name : name;
+
+    if (newPath === sourcePath) return;
+    if (getParentFolder(sourcePath) === targetFolder) return;
+
+    if (isFolder(sourcePath)) {
+      if (newPath.startsWith(sourcePath + '/')) return;
+      const children = getAllFilesUnder(sourcePath);
+      for (const child of children) {
+        const relative = child.substring(sourcePath.length);
+        onRenameFile(child, newPath + relative);
+      }
+    } else {
+      onRenameFile(sourcePath, newPath);
+    }
+
+    if (targetFolder) {
+      setExpandedFolders((prev) => {
+        const next = new Set(prev);
+        next.add(targetFolder);
+        return next;
+      });
+    }
+  }
+
+  function handleDrop(e: React.DragEvent, target: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const source = e.dataTransfer.getData('text/plain') || draggedPath;
+    setDraggedPath(null);
+    setDragOverTarget(null);
+    if (!source || source === target) return;
+    performMove(source, target);
+  }
+
+  function handleRootDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragLeaveTimer.current) {
+      clearTimeout(dragLeaveTimer.current);
+      dragLeaveTimer.current = null;
+    }
+    setDragOverTarget('__root__');
+  }
+
+  function handleRootDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const source = e.dataTransfer.getData('text/plain') || draggedPath;
+    setDraggedPath(null);
+    setDragOverTarget(null);
+    if (!source) return;
+    if (!source.includes('/')) return;
+    performMove(source, '');
+  }
+
+  const isRootDropTarget = dragOverTarget === '__root__';
+
   return (
     <div ref={panelRef} className="relative flex flex-col bg-slate-50 h-full overflow-hidden">
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-200 shrink-0">
@@ -521,7 +682,18 @@ export default function FileManager({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1">
+      <div
+        className={`flex-1 overflow-y-auto py-1 transition-colors ${isRootDropTarget ? 'bg-sky-50 ring-1 ring-sky-300 ring-inset' : ''}`}
+        onDragOver={handleRootDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleRootDrop}
+      >
+        {isRootDropTarget && draggedPath?.includes('/') && (
+          <div className="px-2 py-1 text-[10px] text-sky-600 font-medium">
+            Move to root
+          </div>
+        )}
+
         {tree.map((node) => (
           <TreeItem
             key={node.path}
@@ -540,6 +712,13 @@ export default function FileManager({
             onCancelRename={() => setRenamingPath(null)}
             fileCount={fileCount}
             onContextMenu={handleCtxMenu}
+            draggedPath={draggedPath}
+            dragOverTarget={dragOverTarget}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onDragEnd={handleDragEnd}
           />
         ))}
 
