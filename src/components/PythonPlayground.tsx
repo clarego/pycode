@@ -61,6 +61,7 @@ interface PythonPlaygroundProps {
   onMarkDone?: () => void;
   praiseTaskId?: string | null;
   isTaskDone?: boolean;
+  headerSlot?: React.ReactNode;
 }
 
 export default function PythonPlayground({
@@ -84,6 +85,7 @@ export default function PythonPlayground({
   onMarkDone,
   praiseTaskId,
   isTaskDone = false,
+  headerSlot,
 }: PythonPlaygroundProps) {
   const { hackerMode } = useTheme();
   const [files, setFiles] = useState<Record<string, string>>(
@@ -784,6 +786,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400" />
             <span className="text-xs font-semibold text-white">PyCode</span>
+            {headerSlot}
             {shareCode && (
               <span className="text-[10px] text-slate-400 font-mono select-all">/{shareCode}</span>
             )}

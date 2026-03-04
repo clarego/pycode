@@ -485,27 +485,27 @@ export default function TaskView({ shareCode }: TaskViewProps) {
       ) : (
         <div className="flex-1 min-h-0">
           {panelCollapsed ? (
-            <div className="h-full relative">
-              <button
-                onClick={() => setPanelCollapsed(false)}
-                className="absolute top-2 left-2 z-10 px-2 py-1 text-[10px] text-slate-500 hover:text-slate-700 bg-white/80 hover:bg-white border border-slate-200 rounded-md transition-colors backdrop-blur-sm"
-              >
-                Show Task
-              </button>
-              <div className="h-full">
-                {initialFiles && (
-                  <PythonPlayground
-                    embedded
-                    initialFiles={initialFiles}
-                    onFilesChange={handleFilesChange}
-                    onPasteDetected={handlePasteDetected}
-                    binaryFiles={Object.keys(binaryFiles).length > 0 ? binaryFiles : undefined}
-                    profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
-                    loading={false}
-                    logout={logout}
-                  />
-                )}
-              </div>
+            <div className="h-full">
+              {initialFiles && (
+                <PythonPlayground
+                  embedded
+                  initialFiles={initialFiles}
+                  onFilesChange={handleFilesChange}
+                  onPasteDetected={handlePasteDetected}
+                  binaryFiles={Object.keys(binaryFiles).length > 0 ? binaryFiles : undefined}
+                  profile={user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null}
+                  loading={false}
+                  logout={logout}
+                  headerSlot={
+                    <button
+                      onClick={() => setPanelCollapsed(false)}
+                      className="px-2 py-0.5 text-[10px] text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded transition-colors"
+                    >
+                      Show Task
+                    </button>
+                  }
+                />
+              )}
             </div>
           ) : (
             <ResizablePanel
