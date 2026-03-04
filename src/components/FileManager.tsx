@@ -347,6 +347,7 @@ export default function FileManager({
   const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
   const [createPrefix, setCreatePrefix] = useState('');
   const [newName, setNewName] = useState('');
+  const [createError, setCreateError] = useState('');
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -406,6 +407,7 @@ export default function FileManager({
       setIsCreating(null);
       setNewName('');
       setCreatePrefix('');
+      setCreateError('');
       return;
     }
 
@@ -414,9 +416,14 @@ export default function FileManager({
     if (isCreating === 'folder') {
       const folderPath = fullPath.replace(/\/+$/, '');
       const placeholder = folderPath + '/.gitkeep';
-      if (!files[placeholder]) {
-        onAddFile(placeholder);
+      const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
+      const folderExists = allFilePaths.some((p) => p === placeholder || p.startsWith(folderPath + '/'));
+      if (folderExists) {
+        setCreateError(`A folder named "${name}" already exists here.`);
+        setTimeout(() => inputRef.current?.focus(), 10);
+        return;
       }
+      onAddFile(placeholder);
       setExpandedFolders((prev) => {
         const next = new Set(prev);
         next.add(folderPath);
@@ -425,10 +432,14 @@ export default function FileManager({
     } else {
       const hasExtension = /\.\w+$/.test(name);
       const finalName = hasExtension ? fullPath : fullPath + '.py';
-      if (!files[finalName]) {
-        onAddFile(finalName);
-        onSelectFile(finalName);
+      const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
+      if (allFilePaths.includes(finalName)) {
+        setCreateError(`A file named "${finalName.split('/').pop()}" already exists here.`);
+        setTimeout(() => inputRef.current?.focus(), 10);
+        return;
       }
+      onAddFile(finalName);
+      onSelectFile(finalName);
       const parts = finalName.split('/');
       if (parts.length > 1) {
         setExpandedFolders((prev) => {
@@ -446,6 +457,7 @@ export default function FileManager({
     setIsCreating(null);
     setNewName('');
     setCreatePrefix('');
+    setCreateError('');
   }
 
   const handlePreviewFile = (path: string) => {
@@ -522,23 +534,40 @@ export default function FileManager({
               ref={inputRef}
               autoFocus
               value={newName}
-              onChange={(e) => setNewName(e.target.value)}
+              onChange={(e) => {
+                setNewName(e.target.value);
+                if (createError) setCreateError('');
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreate();
                 if (e.key === 'Escape') {
                   setIsCreating(null);
                   setNewName('');
                   setCreatePrefix('');
+                  setCreateError('');
                 }
               }}
-              onBlur={handleCreate}
-              placeholder={
-                isCreating === 'folder'
-                  ? 'folder name'
-                  : 'filename.py'
-              }
-              className="w-full px-1.5 py-0.5 text-[11px] border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-sky-400 bg-white"
+              onBlur={(e) => {
+                if (!createError) handleCreate();
+                else if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setIsCreating(null);
+                  setNewName('');
+                  setCreatePrefix('');
+                  setCreateError('');
+                }
+              }}
+              placeholder={isCreating === 'folder' ? 'folder name' : 'filename.py'}
+              className={`w-full px-1.5 py-0.5 text-[11px] border rounded focus:outline-none focus:ring-1 bg-white ${
+                createError
+                  ? 'border-red-400 focus:ring-red-400'
+                  : 'border-slate-300 focus:ring-sky-400'
+              }`}
             />
+            {createError && (
+              <div className="mt-1 text-[10px] text-red-600 leading-tight">
+                {createError}
+              </div>
+            )}
           </div>
         )}
       </div>
