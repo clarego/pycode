@@ -412,18 +412,27 @@ export default function FileManager({
     }
 
     const fullPath = createPrefix + name;
+    const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
 
     if (isCreating === 'folder') {
       const folderPath = fullPath.replace(/\/+$/, '');
-      const placeholder = folderPath + '/.gitkeep';
-      const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
-      const folderExists = allFilePaths.some((p) => p === placeholder || p.startsWith(folderPath + '/'));
+      const folderExists = allFilePaths.some(
+        (p) => p.startsWith(folderPath + '/')
+      );
+      const fileConflict = allFilePaths.some(
+        (p) => p === folderPath || p === folderPath + '.py'
+      );
       if (folderExists) {
         setCreateError(`A folder named "${name}" already exists here.`);
-        setTimeout(() => inputRef.current?.focus(), 10);
+        inputRef.current?.focus();
         return;
       }
-      onAddFile(placeholder);
+      if (fileConflict) {
+        setCreateError(`A file named "${name}" already exists here.`);
+        inputRef.current?.focus();
+        return;
+      }
+      onAddFile(folderPath + '/.gitkeep');
       setExpandedFolders((prev) => {
         const next = new Set(prev);
         next.add(folderPath);
@@ -432,10 +441,19 @@ export default function FileManager({
     } else {
       const hasExtension = /\.\w+$/.test(name);
       const finalName = hasExtension ? fullPath : fullPath + '.py';
-      const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
+      const baseName = finalName.split('/').pop()!;
+      const parentPrefix = finalName.substring(0, finalName.length - baseName.length);
+      const folderConflict = allFilePaths.some(
+        (p) => p.startsWith(parentPrefix + baseName.replace(/\.\w+$/, '') + '/')
+      );
       if (allFilePaths.includes(finalName)) {
-        setCreateError(`A file named "${finalName.split('/').pop()}" already exists here.`);
-        setTimeout(() => inputRef.current?.focus(), 10);
+        setCreateError(`A file named "${baseName}" already exists here.`);
+        inputRef.current?.focus();
+        return;
+      }
+      if (folderConflict) {
+        setCreateError(`A folder named "${baseName.replace(/\.\w+$/, '')}" already exists here.`);
+        inputRef.current?.focus();
         return;
       }
       onAddFile(finalName);
@@ -547,10 +565,11 @@ export default function FileManager({
                   setCreateError('');
                 }
               }}
-              onBlur={(e) => {
-                if (newName.trim() && !createError) {
+              onBlur={() => {
+                if (createError) return;
+                if (newName.trim()) {
                   handleCreate();
-                } else if (!newName.trim()) {
+                } else {
                   setIsCreating(null);
                   setNewName('');
                   setCreatePrefix('');
