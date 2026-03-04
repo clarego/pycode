@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
 import type { AnnotationState } from '../../lib/pdfAnnotations';
 import PdfAnnotator from '../pdf/PdfAnnotator';
+import NotebookRenderer from '../notebook/NotebookRenderer';
 
 interface RedFlag {
   type: 'paste' | 'bulk_insert';
@@ -63,9 +64,13 @@ function FilesModal({ files, studentName, onClose }: { files: Record<string, str
         )}
 
         <div className="flex-1 overflow-auto p-0">
-          <pre className="text-xs text-slate-700 font-mono leading-relaxed p-4 whitespace-pre-wrap break-words">
-            {files[activeFile] || ''}
-          </pre>
+          {activeFile.endsWith('.ipynb') ? (
+            <NotebookRenderer content={files[activeFile] || ''} />
+          ) : (
+            <pre className="text-xs text-slate-700 font-mono leading-relaxed p-4 whitespace-pre-wrap break-words">
+              {files[activeFile] || ''}
+            </pre>
+          )}
         </div>
       </div>
     </div>

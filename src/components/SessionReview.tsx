@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { loadSession, type Snapshot } from '../lib/sessions';
 import { Play, Pause, SkipBack, SkipForward, Clock, FileCode, Eye, Loader2, User, AlertTriangle, Clipboard, ChevronDown, ChevronUp } from 'lucide-react';
+import NotebookRenderer from './notebook/NotebookRenderer';
 
 interface SessionReviewProps {
   shareId: string;
@@ -330,8 +331,14 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto bg-white px-4 py-3">
-          <DiffHighlightedCode code={currentCode} prevCode={prevCode} />
+        <div className="flex-1 min-h-0 overflow-auto bg-white">
+          {displayFile.endsWith('.ipynb') ? (
+            <NotebookRenderer content={currentCode} />
+          ) : (
+            <div className="px-4 py-3">
+              <DiffHighlightedCode code={currentCode} prevCode={prevCode} />
+            </div>
+          )}
         </div>
       </div>
 
