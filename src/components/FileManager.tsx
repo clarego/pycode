@@ -393,12 +393,12 @@ export default function FileManager({
     setCreatePrefix(folderPath + '/');
     setIsCreating(type);
     setNewName('');
+    setCreateError('');
     setExpandedFolders((prev) => {
       const next = new Set(prev);
       next.add(folderPath);
       return next;
     });
-    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   function handleCreate() {
@@ -474,7 +474,7 @@ export default function FileManager({
               setCreatePrefix('');
               setIsCreating('file');
               setNewName('');
-              setTimeout(() => inputRef.current?.focus(), 50);
+              setCreateError('');
             }}
             className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
             title="New file"
@@ -486,7 +486,7 @@ export default function FileManager({
               setCreatePrefix('');
               setIsCreating('folder');
               setNewName('');
-              setTimeout(() => inputRef.current?.focus(), 50);
+              setCreateError('');
             }}
             className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
             title="New folder"
@@ -548,8 +548,9 @@ export default function FileManager({
                 }
               }}
               onBlur={(e) => {
-                if (!createError) handleCreate();
-                else if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                if (newName.trim() && !createError) {
+                  handleCreate();
+                } else if (!newName.trim()) {
                   setIsCreating(null);
                   setNewName('');
                   setCreatePrefix('');
