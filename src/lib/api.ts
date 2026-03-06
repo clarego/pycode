@@ -1,18 +1,13 @@
-import { supabase } from './supabase';
-
 const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 async function callManageUsers(body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
-  }
+  const cachedUser = localStorage.getItem('auth_user');
+  const adminUsername = cachedUser ? JSON.parse(cachedUser).username : null;
 
   const res = await fetch(`${FUNCTIONS_URL}/manage-users`, {
     method: 'POST',
-    headers,
-    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, _adminUsername: adminUsername }),
   });
 
   const data = await res.json();

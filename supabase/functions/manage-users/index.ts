@@ -14,6 +14,10 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
+const STANDALONE_URL = "https://qfitpwdrswvnbmzvkoyd.supabase.co";
+const STANDALONE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmaXRwd2Ryc3d2bmJtenZrb3lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTc4NTIsImV4cCI6MjA3NjkzMzg1Mn0.owLaj3VrcyR7_LW9xMwOTTFQupbDKlvAlVwYtbidiNE";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -71,28 +75,20 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ message: "Seeded successfully" });
     }
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const { _adminUsername } = body;
+    if (!_adminUsername) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabaseAdmin.auth.getUser(token);
-    if (userErr || !user) {
-      return jsonResponse({ error: "Invalid token" }, 401);
-    }
-
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
+    const standaloneClient = createClient(STANDALONE_URL, STANDALONE_ANON_KEY);
+    const { data: adminRow } = await standaloneClient
+      .from("users_login")
+      .select("is_admin")
+      .eq("username", _adminUsername)
       .maybeSingle();
 
-    if (!callerProfile || callerProfile.role !== "admin") {
-      return jsonResponse({ error: "Admin access required" }, 403);
+    if (!adminRow || !adminRow.is_admin) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     switch (action) {
@@ -105,32 +101,28 @@ Deno.serve(async (req: Request) => {
           );
         }
 
-        const email = `${username.toLowerCase().replace(/\s+/g, "_")}@pycode.local`;
-        const userRole = role === "admin" ? "admin" : "student";
+        const { data: existing } = await standaloneClient
+          .from("users_login")
+          .select("id")
+          .eq("username", username)
+          .maybeSingle();
 
-        const { data: newUser, error: createErr } =
-          await supabaseAdmin.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-            app_metadata: { role: userRole },
-          });
-        if (createErr) throw createErr;
-
-        const { error: profileErr } = await supabaseAdmin
-          .from("profiles")
-          .insert({
-            id: newUser.user.id,
-            username,
-            role: userRole,
-          });
-        if (profileErr) {
-          await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-          throw profileErr;
+        if (existing) {
+          return jsonResponse({ error: "Username already exists" }, 400);
         }
 
+        const userRole = role === "admin" ? "admin" : "student";
+
+        const { data: newRow, error: insertErr } = await standaloneClient
+          .from("users_login")
+          .insert({ username, password, is_admin: userRole === "admin" })
+          .select("id, username")
+          .maybeSingle();
+
+        if (insertErr) throw insertErr;
+
         return jsonResponse({
-          user: { id: newUser.user.id, username, role: userRole },
+          user: { id: newRow?.id, username, role: userRole },
         });
       }
 
@@ -140,29 +132,20 @@ Deno.serve(async (req: Request) => {
           return jsonResponse({ error: "userId required" }, 400);
         }
 
-        if (password) {
-          const { error } = await supabaseAdmin.auth.admin.updateUserById(
-            userId,
-            { password }
-          );
-          if (error) throw error;
+        const updates: Record<string, unknown> = {};
+        if (password) updates.password = password;
+        if (username) updates.username = username;
+
+        if (Object.keys(updates).length === 0) {
+          return jsonResponse({ success: true });
         }
 
-        if (username) {
-          const email = `${username.toLowerCase().replace(/\s+/g, "_")}@pycode.local`;
-          const { error: emailErr } =
-            await supabaseAdmin.auth.admin.updateUserById(userId, {
-              email,
-              user_metadata: { username },
-            });
-          if (emailErr) throw emailErr;
+        const { error: updateErr } = await standaloneClient
+          .from("users_login")
+          .update(updates)
+          .eq("id", userId);
 
-          const { error: profileErr } = await supabaseAdmin
-            .from("profiles")
-            .update({ username })
-            .eq("id", userId);
-          if (profileErr) throw profileErr;
-        }
+        if (updateErr) throw updateErr;
 
         return jsonResponse({ success: true });
       }
@@ -173,13 +156,22 @@ Deno.serve(async (req: Request) => {
           return jsonResponse({ error: "userIds array required" }, 400);
         }
 
-        if (userIds.includes(user.id)) {
+        const { data: callerRow } = await standaloneClient
+          .from("users_login")
+          .select("id")
+          .eq("username", _adminUsername)
+          .maybeSingle();
+
+        if (callerRow && userIds.includes(callerRow.id)) {
           return jsonResponse({ error: "Cannot delete yourself" }, 400);
         }
 
-        for (const uid of userIds) {
-          await supabaseAdmin.auth.admin.deleteUser(uid);
-        }
+        const { error: deleteErr } = await standaloneClient
+          .from("users_login")
+          .delete()
+          .in("id", userIds);
+
+        if (deleteErr) throw deleteErr;
 
         return jsonResponse({ success: true, deleted: userIds.length });
       }
