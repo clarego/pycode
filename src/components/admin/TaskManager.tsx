@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil } from 'lucide-react';
+import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil, BookOpen } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
+
+interface ClassOption {
+  id: string;
+  name: string;
+  members: string[];
+}
 
 const STANDALONE_URL = 'https://qfitpwdrswvnbmzvkoyd.supabase.co';
 const STANDALONE_ANON_KEY =
@@ -43,13 +49,28 @@ async function fetchStudents(): Promise<StudentUser[]> {
   return data.filter(u => !u.is_admin).map(u => ({ username: u.username }));
 }
 
-function AssignStudentsModal({ task, students, currentAssignments, onClose, onSave }: {
+async function fetchClasses(): Promise<ClassOption[]> {
+  const [classRes, memberRes] = await Promise.all([
+    supabase.from('classes').select('id, name').order('name', { ascending: true }),
+    supabase.from('class_members').select('class_id, student_username'),
+  ]);
+  const memberMap: Record<string, string[]> = {};
+  for (const m of (memberRes.data ?? [])) {
+    if (!memberMap[m.class_id]) memberMap[m.class_id] = [];
+    memberMap[m.class_id].push(m.student_username);
+  }
+  return (classRes.data ?? []).map(c => ({ id: c.id, name: c.name, members: memberMap[c.id] ?? [] }));
+}
+
+function AssignStudentsModal({ task, students, classes, currentAssignments, onClose, onSave }: {
   task: Task;
   students: StudentUser[];
+  classes: ClassOption[];
   currentAssignments: string[];
   onClose: () => void;
   onSave: (taskId: string, selected: string[]) => Promise<void>;
 }) {
+  const [tab, setTab] = useState<'students' | 'classes'>('students');
   const [selected, setSelected] = useState<Set<string>>(new Set(currentAssignments));
   const [saving, setSaving] = useState(false);
 
@@ -63,11 +84,18 @@ function AssignStudentsModal({ task, students, currentAssignments, onClose, onSa
   };
 
   const selectAll = () => {
-    if (selected.size === students.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(students.map(s => s.username)));
-    }
+    if (selected.size === students.length) setSelected(new Set());
+    else setSelected(new Set(students.map(s => s.username)));
+  };
+
+  const toggleClass = (cls: ClassOption) => {
+    const allIn = cls.members.every(m => selected.has(m));
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allIn) cls.members.forEach(m => next.delete(m));
+      else cls.members.forEach(m => next.add(m));
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -93,40 +121,104 @@ function AssignStudentsModal({ task, students, currentAssignments, onClose, onSa
             <X size={16} />
           </button>
         </div>
-        <div className="px-5 py-2 border-b border-slate-100">
+
+        <div className="flex border-b border-slate-100">
           <button
-            onClick={selectAll}
-            className="text-xs text-sky-600 hover:text-sky-700 font-medium"
+            onClick={() => setTab('students')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors ${
+              tab === 'students' ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50/50' : 'text-slate-500 hover:text-slate-700'
+            }`}
           >
-            {selected.size === students.length ? 'Deselect all' : 'Select all'}
+            <Users size={12} />
+            Students
           </button>
-          <span className="text-xs text-slate-400 ml-2">{selected.size} selected</span>
+          <button
+            onClick={() => setTab('classes')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors ${
+              tab === 'classes' ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50/50' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <BookOpen size={12} />
+            Classes
+          </button>
         </div>
+
+        {tab === 'students' && (
+          <div className="px-5 py-2 border-b border-slate-100 flex items-center justify-between">
+            <button onClick={selectAll} className="text-xs text-sky-600 hover:text-sky-700 font-medium">
+              {selected.size === students.length ? 'Deselect all' : 'Select all'}
+            </button>
+            <span className="text-xs text-slate-400">{selected.size} selected</span>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          {students.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-8">No students found</p>
+          {tab === 'students' ? (
+            students.length === 0 ? (
+              <p className="text-center text-sm text-slate-400 py-8">No students found</p>
+            ) : (
+              <div className="space-y-0.5">
+                {students.map(s => (
+                  <label
+                    key={s.username}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                      selected.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(s.username)}
+                      onChange={() => toggle(s.username)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
+                    />
+                    <span className="text-sm text-slate-700">{s.username}</span>
+                  </label>
+                ))}
+              </div>
+            )
           ) : (
-            <div className="space-y-0.5">
-              {students.map(s => (
-                <label
-                  key={s.username}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                    selected.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(s.username)}
-                    onChange={() => toggle(s.username)}
-                    className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
-                  />
-                  <span className="text-sm text-slate-700">{s.username}</span>
-                </label>
-              ))}
-            </div>
+            classes.length === 0 ? (
+              <p className="text-center text-sm text-slate-400 py-8">No classes found. Create classes first.</p>
+            ) : (
+              <div className="space-y-1 py-1">
+                {classes.map(cls => {
+                  const allIn = cls.members.length > 0 && cls.members.every(m => selected.has(m));
+                  const someIn = cls.members.some(m => selected.has(m));
+                  return (
+                    <button
+                      key={cls.id}
+                      onClick={() => toggleClass(cls)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                        allIn ? 'bg-sky-50 border border-sky-200' : someIn ? 'bg-amber-50 border border-amber-200' : 'hover:bg-slate-50 border border-transparent'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        allIn ? 'bg-sky-600 border-sky-600' : someIn ? 'bg-amber-400 border-amber-400' : 'border-slate-300'
+                      }`}>
+                        {(allIn || someIn) && <Check size={10} className="text-white" strokeWidth={3} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-slate-700">{cls.name}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {cls.members.length === 0
+                            ? 'No members'
+                            : `${cls.members.length} student${cls.members.length !== 1 ? 's' : ''}`
+                          }
+                          {someIn && !allIn && ` · ${cls.members.filter(m => selected.has(m)).length} selected`}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
+
         <div className="p-4 border-t border-slate-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] text-slate-400">{selected.size} student{selected.size !== 1 ? 's' : ''} will be assigned</span>
+          </div>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -141,9 +233,10 @@ function AssignStudentsModal({ task, students, currentAssignments, onClose, onSa
   );
 }
 
-function EditTaskModal({ task, students, currentAssignments, onClose, onSave }: {
+function EditTaskModal({ task, students, classes, currentAssignments, onClose, onSave }: {
   task: Task;
   students: StudentUser[];
+  classes: ClassOption[];
   currentAssignments: string[];
   onClose: () => void;
   onSave: (taskId: string, updates: { title: string; description: string }, newFiles: File[], removedPaths: string[], selectedStudents: string[]) => Promise<void>;
@@ -156,6 +249,7 @@ function EditTaskModal({ task, students, currentAssignments, onClose, onSave }: 
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [removedPaths, setRemovedPaths] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set(currentAssignments));
+  const [assignTab, setAssignTab] = useState<'students' | 'classes'>('students');
   const [saving, setSaving] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -173,6 +267,16 @@ function EditTaskModal({ task, students, currentAssignments, onClose, onSave }: 
   const selectAll = () => {
     if (selected.size === students.length) setSelected(new Set());
     else setSelected(new Set(students.map(s => s.username)));
+  };
+
+  const toggleClass = (cls: ClassOption) => {
+    const allIn = cls.members.length > 0 && cls.members.every(m => selected.has(m));
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allIn) cls.members.forEach(m => next.delete(m));
+      else cls.members.forEach(m => next.add(m));
+      return next;
+    });
   };
 
   const addFiles = (incoming: FileList | File[]) => {
@@ -247,33 +351,90 @@ function EditTaskModal({ task, students, currentAssignments, onClose, onSave }: 
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-slate-600">Assign to Students</label>
-              <button type="button" onClick={selectAll} className="text-[10px] text-sky-600 hover:text-sky-700 font-medium">
-                {selected.size === students.length ? 'Deselect all' : 'Select all'}
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Assign to Students</label>
+            <div className="flex border border-slate-200 rounded-lg overflow-hidden mb-2">
+              <button
+                type="button"
+                onClick={() => setAssignTab('students')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium transition-colors ${
+                  assignTab === 'students' ? 'bg-sky-50 text-sky-600' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <Users size={10} />
+                Students
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssignTab('classes')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium transition-colors ${
+                  assignTab === 'classes' ? 'bg-sky-50 text-sky-600' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <BookOpen size={10} />
+                Classes
               </button>
             </div>
-            {students.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No students found</p>
+            {assignTab === 'students' ? (
+              students.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No students found</p>
+              ) : (
+                <>
+                  <div className="flex justify-end mb-1">
+                    <button type="button" onClick={selectAll} className="text-[10px] text-sky-600 hover:text-sky-700 font-medium">
+                      {selected.size === students.length ? 'Deselect all' : 'Select all'}
+                    </button>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-lg max-h-36 overflow-y-auto p-1">
+                    {students.map(s => (
+                      <label
+                        key={s.username}
+                        className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+                          selected.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected.has(s.username)}
+                          onChange={() => toggleStudent(s.username)}
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
+                        />
+                        <span className="text-xs text-slate-700">{s.username}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )
             ) : (
-              <div className="bg-white border border-slate-200 rounded-lg max-h-36 overflow-y-auto p-1">
-                {students.map(s => (
-                  <label
-                    key={s.username}
-                    className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
-                      selected.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(s.username)}
-                      onChange={() => toggleStudent(s.username)}
-                      className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
-                    />
-                    <span className="text-xs text-slate-700">{s.username}</span>
-                  </label>
-                ))}
-              </div>
+              classes.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No classes found. Create classes first.</p>
+              ) : (
+                <div className="bg-white border border-slate-200 rounded-lg max-h-36 overflow-y-auto p-1">
+                  {classes.map(cls => {
+                    const allIn = cls.members.length > 0 && cls.members.every(m => selected.has(m));
+                    const someIn = cls.members.some(m => selected.has(m));
+                    return (
+                      <button
+                        key={cls.id}
+                        type="button"
+                        onClick={() => toggleClass(cls)}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-left transition-colors ${
+                          allIn ? 'bg-sky-50' : someIn ? 'bg-amber-50' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${
+                          allIn ? 'bg-sky-600 border-sky-600' : someIn ? 'bg-amber-400 border-amber-400' : 'border-slate-300'
+                        }`}>
+                          {(allIn || someIn) && <Check size={8} className="text-white" strokeWidth={3} />}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs text-slate-700 font-medium">{cls.name}</span>
+                          <span className="text-[9px] text-slate-400 ml-1.5">{cls.members.length} student{cls.members.length !== 1 ? 's' : ''}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )
             )}
             {selected.size > 0 && (
               <p className="text-[10px] text-slate-400 mt-1">{selected.size} student{selected.size !== 1 ? 's' : ''} selected</p>
@@ -370,7 +531,9 @@ export default function TaskManager() {
   const dropRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [students, setStudents] = useState<StudentUser[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [createAssignTab, setCreateAssignTab] = useState<'students' | 'classes'>('students');
   const [assignmentsMap, setAssignmentsMap] = useState<Record<string, string[]>>({});
   const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
   const [editModalTask, setEditModalTask] = useState<Task | null>(null);
@@ -395,6 +558,7 @@ export default function TaskManager() {
 
   useEffect(() => {
     fetchStudents().then(setStudents);
+    fetchClasses().then(setClasses);
   }, []);
 
   const toggleStudent = (username: string) => {
@@ -412,6 +576,16 @@ export default function TaskManager() {
     } else {
       setSelectedStudents(new Set(students.map(s => s.username)));
     }
+  };
+
+  const toggleClassInCreate = (cls: ClassOption) => {
+    const allIn = cls.members.length > 0 && cls.members.every(m => selectedStudents.has(m));
+    setSelectedStudents(prev => {
+      const next = new Set(prev);
+      if (allIn) cls.members.forEach(m => next.delete(m));
+      else cls.members.forEach(m => next.add(m));
+      return next;
+    });
   };
 
   const addFiles = (incoming: FileList | File[]) => {
@@ -648,37 +822,90 @@ export default function TaskManager() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-slate-600">Assign to Students</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Assign to Students</label>
+              <div className="flex border border-slate-200 rounded-lg overflow-hidden mb-2">
                 <button
                   type="button"
-                  onClick={selectAllStudents}
-                  className="text-[10px] text-sky-600 hover:text-sky-700 font-medium"
+                  onClick={() => setCreateAssignTab('students')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium transition-colors ${
+                    createAssignTab === 'students' ? 'bg-sky-50 text-sky-600' : 'text-slate-500 hover:bg-slate-50'
+                  }`}
                 >
-                  {selectedStudents.size === students.length ? 'Deselect all' : 'Select all'}
+                  <Users size={10} />
+                  Students
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateAssignTab('classes')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-medium transition-colors ${
+                    createAssignTab === 'classes' ? 'bg-sky-50 text-sky-600' : 'text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <BookOpen size={10} />
+                  Classes
                 </button>
               </div>
-              {students.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">No students found</p>
+              {createAssignTab === 'students' ? (
+                students.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No students found</p>
+                ) : (
+                  <>
+                    <div className="flex justify-end mb-1">
+                      <button type="button" onClick={selectAllStudents} className="text-[10px] text-sky-600 hover:text-sky-700 font-medium">
+                        {selectedStudents.size === students.length ? 'Deselect all' : 'Select all'}
+                      </button>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto p-1">
+                      {students.map(s => (
+                        <label
+                          key={s.username}
+                          className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+                            selectedStudents.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedStudents.has(s.username)}
+                            onChange={() => toggleStudent(s.username)}
+                            className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
+                          />
+                          <span className="text-xs text-slate-700">{s.username}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )
               ) : (
-                <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto p-1">
-                  {students.map(s => (
-                    <label
-                      key={s.username}
-                      className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
-                        selectedStudents.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedStudents.has(s.username)}
-                        onChange={() => toggleStudent(s.username)}
-                        className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500/30"
-                      />
-                      <span className="text-xs text-slate-700">{s.username}</span>
-                    </label>
-                  ))}
-                </div>
+                classes.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No classes found. Create classes first.</p>
+                ) : (
+                  <div className="bg-white border border-slate-200 rounded-lg max-h-40 overflow-y-auto p-1">
+                    {classes.map(cls => {
+                      const allIn = cls.members.length > 0 && cls.members.every(m => selectedStudents.has(m));
+                      const someIn = cls.members.some(m => selectedStudents.has(m));
+                      return (
+                        <button
+                          key={cls.id}
+                          type="button"
+                          onClick={() => toggleClassInCreate(cls)}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-left transition-colors ${
+                            allIn ? 'bg-sky-50' : someIn ? 'bg-amber-50' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${
+                            allIn ? 'bg-sky-600 border-sky-600' : someIn ? 'bg-amber-400 border-amber-400' : 'border-slate-300'
+                          }`}>
+                            {(allIn || someIn) && <Check size={8} className="text-white" strokeWidth={3} />}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs text-slate-700 font-medium">{cls.name}</span>
+                            <span className="text-[9px] text-slate-400 ml-1.5">{cls.members.length} student{cls.members.length !== 1 ? 's' : ''}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )
               )}
               {selectedStudents.size > 0 && (
                 <p className="text-[10px] text-slate-400 mt-1">{selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected</p>
@@ -848,6 +1075,7 @@ export default function TaskManager() {
         <AssignStudentsModal
           task={assignModalTask}
           students={students}
+          classes={classes}
           currentAssignments={assignmentsMap[assignModalTask.id] || []}
           onClose={() => setAssignModalTask(null)}
           onSave={handleSaveAssignments}
@@ -858,6 +1086,7 @@ export default function TaskManager() {
         <EditTaskModal
           task={editModalTask}
           students={students}
+          classes={classes}
           currentAssignments={assignmentsMap[editModalTask.id] || []}
           onClose={() => setEditModalTask(null)}
           onSave={handleUpdate}
