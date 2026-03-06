@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
 import type { AnnotationState } from '../../lib/pdfAnnotations';
 import PdfAnnotator from '../pdf/PdfAnnotator';
 import NotebookRenderer from '../notebook/NotebookRenderer';
+
+interface ClassOption {
+  id: string;
+  name: string;
+  members: string[];
+}
 
 interface RedFlag {
   type: 'paste' | 'bulk_insert';
@@ -326,6 +332,8 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const [viewingFiles, setViewingFiles] = useState<{ files: Record<string, string>; studentName: string } | null>(null);
   const [feedbackSub, setFeedbackSub] = useState<Submission | null>(null);
   const [pdfSub, setPdfSub] = useState<Submission | null>(null);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
   const fetchSubmissions = useCallback(async () => {
     let query = supabase
@@ -342,7 +350,23 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
     setLoading(false);
   }, [filterUsername]);
 
-  useEffect(() => { fetchSubmissions(); }, [fetchSubmissions]);
+  const fetchClasses = useCallback(async () => {
+    const [classRes, memberRes] = await Promise.all([
+      supabase.from('classes').select('id, name').order('name', { ascending: true }),
+      supabase.from('class_members').select('class_id, student_username'),
+    ]);
+    const memberMap: Record<string, string[]> = {};
+    for (const m of (memberRes.data ?? [])) {
+      if (!memberMap[m.class_id]) memberMap[m.class_id] = [];
+      memberMap[m.class_id].push(m.student_username);
+    }
+    setClasses((classRes.data ?? []).map(c => ({ id: c.id, name: c.name, members: memberMap[c.id] ?? [] })));
+  }, []);
+
+  useEffect(() => {
+    fetchSubmissions();
+    if (!filterUsername) fetchClasses();
+  }, [fetchSubmissions, fetchClasses, filterUsername]);
 
   const toggleReviewed = async (sub: Submission) => {
     setToggling(sub.id);
@@ -370,6 +394,11 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
     return files.some(f => f.name.toLowerCase().endsWith('.pdf'));
   }
 
+  const selectedClass = classes.find(c => c.id === selectedClassId) ?? null;
+  const visibleSubmissions = selectedClass
+    ? submissions.filter(s => selectedClass.members.includes(s.student_id))
+    : submissions;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -380,17 +409,58 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <FileCheck size={20} className="text-slate-600" />
         <h2 className="text-lg font-semibold text-slate-800">Submissions</h2>
-        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{submissions.length} total</span>
+        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{visibleSubmissions.length} total</span>
         <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200">
-          {submissions.filter(s => s.reviewed).length} reviewed
+          {visibleSubmissions.filter(s => s.reviewed).length} reviewed
         </span>
       </div>
 
-      {submissions.length === 0 ? (
-        <div className="text-center py-16 text-sm text-slate-400">No submissions yet.</div>
+      {!filterUsername && classes.length > 0 && (
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 mr-1">
+            <BookOpen size={13} />
+            Filter by class:
+          </div>
+          <button
+            onClick={() => setSelectedClassId(null)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              selectedClassId === null
+                ? 'bg-slate-800 text-white'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Users size={11} />
+            All Students
+          </button>
+          {classes.map(cls => (
+            <button
+              key={cls.id}
+              onClick={() => setSelectedClassId(cls.id === selectedClassId ? null : cls.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                selectedClassId === cls.id
+                  ? 'bg-sky-600 text-white'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+              }`}
+            >
+              <BookOpen size={11} />
+              {cls.name}
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                selectedClassId === cls.id ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {submissions.filter(s => cls.members.includes(s.student_id)).length}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {visibleSubmissions.length === 0 ? (
+        <div className="text-center py-16 text-sm text-slate-400">
+          {selectedClass ? `No submissions from ${selectedClass.name} yet.` : 'No submissions yet.'}
+        </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <table className="w-full">
@@ -405,12 +475,27 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {submissions.map((sub) => {
+              {visibleSubmissions.map((sub) => {
                 const fileCount = sub.files ? Object.keys(sub.files).length : 0;
+                const studentClasses = !filterUsername
+                  ? classes.filter(c => c.members.includes(sub.student_id))
+                  : [];
                 return (
                   <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="text-sm font-medium text-slate-800">{sub.student_id}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium text-slate-800">{sub.student_id}</span>
+                        {studentClasses.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {studentClasses.map(c => (
+                              <span key={c.id} className="inline-flex items-center gap-1 text-[10px] text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded font-medium">
+                                <BookOpen size={8} />
+                                {c.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {sub.tasks ? (
