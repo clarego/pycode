@@ -3401,6 +3401,8 @@ async function initPyodide() {
     },
   });
 
+  await pyodide.loadPackage(['beautifulsoup4', 'lxml']);
+
   await pyodide.runPythonAsync(TKINTER_STUB);
   await pyodide.runPythonAsync(PYGAME_STUB);
   await pyodide.runPythonAsync(TURTLE_STUB);
@@ -3472,6 +3474,9 @@ async function loadPackagesForCode(code) {
     pd: 'pandas',
     sklearn: 'scikit-learn',
     sympy: 'sympy',
+    bs4: 'beautifulsoup4',
+    beautifulsoup4: 'beautifulsoup4',
+    lxml: 'lxml',
   };
 
   const needed = new Set();
