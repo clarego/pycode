@@ -103,6 +103,7 @@ function getFileIcon(name: string) {
   if (name.endsWith('.css')) return <FileText size={14} className="text-blue-400 flex-shrink-0" />;
   if (name.endsWith('.js')) return <FileText size={14} className="text-yellow-400 flex-shrink-0" />;
   if (name.endsWith('.json')) return <FileText size={14} className="text-green-400 flex-shrink-0" />;
+  if (name.endsWith('.xml') || name.endsWith('.xsl') || name.endsWith('.xsd')) return <FileCode size={14} className="text-rose-500 flex-shrink-0" />;
   if (name.endsWith('.csv')) return <FileText size={14} className="text-emerald-500 flex-shrink-0" />;
   if (name.endsWith('.md')) return <FileText size={14} className="text-slate-500 flex-shrink-0" />;
   if (name.endsWith('.txt')) return <FileText size={14} className="text-slate-400 flex-shrink-0" />;

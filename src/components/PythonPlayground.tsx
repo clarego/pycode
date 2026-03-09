@@ -11,6 +11,7 @@ import ResizablePanel from './ResizablePanel';
 import Toast from './Toast';
 import GuiDesigner from './gui-designer/GuiDesigner';
 import NotebookEditor from './notebook/NotebookEditor';
+import XmlEditor from './xml/XmlEditor';
 import type { FormState } from './gui-designer/types';
 import { usePyodide } from '../hooks/usePyodide';
 import { useTheme } from './ThemeContext';
@@ -606,6 +607,7 @@ Keep it concise - no more than 6-8 sentences total.`,
   );
 
   const isActiveNotebook = activeFile.endsWith('.ipynb');
+  const isActiveXml = activeFile.endsWith('.xml') || activeFile.endsWith('.xsl') || activeFile.endsWith('.xsd');
 
   const codeArea = (
     <div className="h-full min-h-0">
@@ -620,6 +622,14 @@ Keep it concise - no more than 6-8 sentences total.`,
           filename={activeFile}
           onSave={profile ? handleNotebookManualSave : undefined}
           saveStatus={notebookSaveStatus}
+        />
+      ) : isActiveXml ? (
+        <XmlEditor
+          value={files[activeFile] || ''}
+          onChange={handleFileChange}
+          filename={activeFile}
+          readOnly={isEmbed}
+          hackerMode={hackerMode}
         />
       ) : (
         <CodeEditor

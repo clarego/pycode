@@ -60,6 +60,7 @@ interface CodeEditorProps {
 function getLanguageExtension(filename?: string) {
   if (!filename) return python();
   if (filename.endsWith('.html') || filename.endsWith('.htm')) return html();
+  if (filename.endsWith('.xml') || filename.endsWith('.xsl') || filename.endsWith('.xsd') || filename.endsWith('.svg')) return html({ selfClosingTags: true });
   if (filename.endsWith('.css')) return css();
   if (filename.endsWith('.js')) return javascript();
   if (filename.endsWith('.json')) return javascript();
