@@ -3656,6 +3656,21 @@ if '/home/pyodide' not in _sys.path:
     _sys.path.insert(0, '/home/pyodide')
 `);
 
+    const otherPyFiles = Object.keys(files).filter(
+      f => f !== mainFile && f.endsWith('.py') && !f.includes('/')
+    );
+    for (const filename of otherPyFiles) {
+      const moduleName = filename.replace(/\.py$/, '');
+      await py.runPythonAsync(`
+import importlib as _il, builtins as _builtins
+_mod = _il.import_module('${moduleName}')
+for _name in dir(_mod):
+    if not _name.startswith('_'):
+        _builtins.__dict__[_name] = getattr(_mod, _name)
+del _il, _mod, _name
+`);
+    }
+
     let vfCode = '_flask_virtual_files = {\n';
     for (const [filename, content] of Object.entries(files)) {
       const escaped = sanitizeCode(content).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
