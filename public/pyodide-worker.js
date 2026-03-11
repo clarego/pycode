@@ -3639,18 +3639,22 @@ _flask_virtual_files = {}
     const sanitizeCode = (src) => src.replace(/[\u200B-\u200D\uFEFF\u00AD\u034F\u115F\u1160\u17B4\u17B5\u180B-\u180D\u2060-\u206F\uFFA0\uFFF0-\uFFF8]/g, '');
 
     for (const [filename, content] of Object.entries(files)) {
-      if (filename !== mainFile) {
-        const parts = filename.split('/');
-        if (parts.length > 1) {
-          let dir = '/home/pyodide';
-          for (let i = 0; i < parts.length - 1; i++) {
-            dir += '/' + parts[i];
-            try { py.FS.mkdir(dir); } catch (e) { /* exists */ }
-          }
+      const parts = filename.split('/');
+      if (parts.length > 1) {
+        let dir = '/home/pyodide';
+        for (let i = 0; i < parts.length - 1; i++) {
+          dir += '/' + parts[i];
+          try { py.FS.mkdir(dir); } catch (e) { /* exists */ }
         }
-        py.FS.writeFile(`/home/pyodide/${filename}`, sanitizeCode(content));
       }
+      py.FS.writeFile(`/home/pyodide/${filename}`, sanitizeCode(content));
     }
+
+    await py.runPythonAsync(`
+import sys as _sys
+if '/home/pyodide' not in _sys.path:
+    _sys.path.insert(0, '/home/pyodide')
+`);
 
     let vfCode = '_flask_virtual_files = {\n';
     for (const [filename, content] of Object.entries(files)) {
