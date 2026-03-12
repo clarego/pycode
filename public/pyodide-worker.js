@@ -3660,16 +3660,8 @@ if '/home/pyodide' not in _sys.path:
       f => f !== mainFile && f.endsWith('.py') && !f.includes('/')
     );
     for (const filename of otherPyFiles) {
-      const moduleName = filename.replace(/\.py$/, '');
-      await py.runPythonAsync(`
-import builtins as _builtins
-_src = open('/home/pyodide/${filename}').read()
-_g = {'__builtins__': _builtins, '__name__': '${moduleName}'}
-exec(compile(_src, '${filename}', 'exec'), _g)
-for _k, _v in _g.items():
-    if not _k.startswith('_'):
-        _builtins.__dict__[_k] = _v
-`);
+      const src = sanitizeCode(files[filename] || '');
+      await py.runPythonAsync(src);
     }
 
     let vfCode = '_flask_virtual_files = {\n';
