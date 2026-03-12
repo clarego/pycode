@@ -86,6 +86,62 @@ function MarkdownCell({ source }: { source: string }) {
       );
       i = j;
       continue;
+    } else if (line.startsWith('>')) {
+      const items: string[] = [];
+      let j = i;
+      while (j < lines.length && lines[j].startsWith('>')) {
+        items.push(lines[j].slice(1).trimStart());
+        j++;
+      }
+      elements.push(
+        <blockquote key={i} className="border-l-4 border-amber-400 bg-amber-50 px-3 py-2 my-1 rounded-r text-sm text-slate-700">
+          {items.map((item, k) => <p key={k} className="leading-relaxed">{renderInline(item)}</p>)}
+        </blockquote>
+      );
+      i = j;
+      continue;
+    } else if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      const tableLines: string[] = [];
+      let j = i;
+      while (j < lines.length && lines[j].trim().startsWith('|') && lines[j].trim().endsWith('|')) {
+        tableLines.push(lines[j]);
+        j++;
+      }
+      const headerRow = tableLines[0];
+      const headers = headerRow.split('|').slice(1, -1).map(h => h.trim());
+      const isSeparator = (row: string) => /^\|[\s|:-]+\|$/.test(row.trim());
+      const dataRows = tableLines.slice(1).filter(row => !isSeparator(row));
+      elements.push(
+        <div key={i} className="overflow-x-auto my-2">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-slate-100">
+                {headers.map((h, k) => (
+                  <th key={k} className="border border-slate-300 px-3 py-1.5 text-left font-semibold text-slate-700 text-xs">
+                    {renderInline(h)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dataRows.map((row, rk) => {
+                const cells = row.split('|').slice(1, -1).map(c => c.trim());
+                return (
+                  <tr key={rk} className={rk % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                    {cells.map((cell, ck) => (
+                      <td key={ck} className="border border-slate-200 px-3 py-1.5 text-xs text-slate-700">
+                        {renderInline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+      i = j;
+      continue;
     } else if (line.startsWith('```')) {
       const lang = line.slice(3).trim();
       const codeLines: string[] = [];
