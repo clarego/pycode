@@ -34,7 +34,9 @@ export default function NotebookEditor({
   onSave,
   saveStatus = 'idle',
 }: NotebookEditorProps) {
-  const [notebook, setNotebook] = useState<NotebookDocument>(() => parseNotebook(value));
+  const [notebook, setNotebook] = useState<NotebookDocument | null>(() =>
+    value.trim() ? parseNotebook(value) : null
+  );
   const [cellOutputs, setCellOutputs] = useState<Record<string, CellOutput>>({});
   const [runningCellId, setRunningCellId] = useState<string | null>(null);
   const [executionCount, setExecutionCount] = useState(1);
@@ -44,7 +46,9 @@ export default function NotebookEditor({
   useEffect(() => {
     if (value !== lastExternalValue.current) {
       lastExternalValue.current = value;
-      setNotebook(parseNotebook(value));
+      if (value.trim()) {
+        setNotebook(parseNotebook(value));
+      }
     }
   }, [value]);
 
@@ -97,15 +101,17 @@ export default function NotebookEditor({
 
   const handleRunCell = useCallback(
     (cellId: string) => {
+      if (!notebook) return;
       const cell = notebook.cells.find((c) => c.id === cellId);
       if (!cell || cell.cell_type !== 'code' || !cell.source.trim()) return;
       setRunningCellId(cellId);
       onRunCode(cell.source);
     },
-    [notebook.cells, onRunCode]
+    [notebook, onRunCode]
   );
 
   const handleRunAll = useCallback(() => {
+    if (!notebook) return;
     const code = extractCodeCells(notebook);
     if (!code.trim()) return;
     setCellOutputs({});
@@ -116,7 +122,7 @@ export default function NotebookEditor({
   const handleDeleteCell = useCallback(
     (cellId: string) => {
       setNotebook((prev) => {
-        if (prev.cells.length <= 1) return prev;
+        if (!prev || prev.cells.length <= 1) return prev;
         const updated = { ...prev, cells: prev.cells.filter((c) => c.id !== cellId) };
         pushChanges(updated);
         return updated;
@@ -133,6 +139,7 @@ export default function NotebookEditor({
   const handleMoveCell = useCallback(
     (cellId: string, direction: 'up' | 'down') => {
       setNotebook((prev) => {
+        if (!prev) return prev;
         const idx = prev.cells.findIndex((c) => c.id === cellId);
         if (idx < 0) return prev;
         const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
@@ -150,6 +157,7 @@ export default function NotebookEditor({
   const handleChangeType = useCallback(
     (cellId: string, newType: 'code' | 'markdown') => {
       setNotebook((prev) => {
+        if (!prev) return prev;
         const updated = {
           ...prev,
           cells: prev.cells.map((c) => {
@@ -180,6 +188,7 @@ export default function NotebookEditor({
         outputs: type === 'code' ? [] : undefined,
       };
       setNotebook((prev) => {
+        if (!prev) return prev;
         const idx = prev.cells.findIndex((c) => c.id === afterCellId);
         const cells = [...prev.cells];
         cells.splice(idx + 1, 0, newCell);
@@ -202,6 +211,7 @@ export default function NotebookEditor({
         outputs: type === 'code' ? [] : undefined,
       };
       setNotebook((prev) => {
+        if (!prev) return prev;
         const updated = { ...prev, cells: [...prev.cells, newCell] };
         pushChanges(updated);
         return updated;
@@ -213,6 +223,7 @@ export default function NotebookEditor({
   const handleClearOutputs = useCallback(() => {
     setCellOutputs({});
     setNotebook((prev) => {
+      if (!prev) return prev;
       const updated = {
         ...prev,
         cells: prev.cells.map((c) =>
@@ -226,6 +237,7 @@ export default function NotebookEditor({
   }, [pushChanges]);
 
   const handleDownload = useCallback(() => {
+    if (!notebook) return;
     const json = serializeNotebook(notebook);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -279,7 +291,7 @@ export default function NotebookEditor({
         </button>
         <div className="flex-1" />
         <span className="text-[10px] text-slate-400">
-          {notebook.cells.length} cell{notebook.cells.length !== 1 ? 's' : ''}
+          {notebook ? `${notebook.cells.length} cell${notebook.cells.length !== 1 ? 's' : ''}` : ''}
         </span>
         {onSave && (
           <button
@@ -316,23 +328,29 @@ export default function NotebookEditor({
       </div>
 
       <div className="flex-1 overflow-auto px-6 sm:px-12 py-4">
-        {notebook.cells.map((cell, index) => (
-          <NotebookCellComponent
-            key={cell.id}
-            cell={cell}
-            index={index}
-            total={notebook.cells.length}
-            isRunning={isRunning && runningCellId === cell.id}
-            cellOutput={cellOutputs[cell.id] || null}
-            onSourceChange={(s) => handleCellSourceChange(cell.id, s)}
-            onRun={() => handleRunCell(cell.id)}
-            onDelete={() => handleDeleteCell(cell.id)}
-            onMoveUp={() => handleMoveCell(cell.id, 'up')}
-            onMoveDown={() => handleMoveCell(cell.id, 'down')}
-            onChangeType={(t) => handleChangeType(cell.id, t)}
-            onAddBelow={(t) => handleAddCell(cell.id, t)}
-          />
-        ))}
+        {!notebook ? (
+          <div className="flex items-center justify-center h-32 text-xs text-slate-400">
+            Loading notebook...
+          </div>
+        ) : (
+          notebook.cells.map((cell, index) => (
+            <NotebookCellComponent
+              key={cell.id}
+              cell={cell}
+              index={index}
+              total={notebook.cells.length}
+              isRunning={isRunning && runningCellId === cell.id}
+              cellOutput={cellOutputs[cell.id] || null}
+              onSourceChange={(s) => handleCellSourceChange(cell.id, s)}
+              onRun={() => handleRunCell(cell.id)}
+              onDelete={() => handleDeleteCell(cell.id)}
+              onMoveUp={() => handleMoveCell(cell.id, 'up')}
+              onMoveDown={() => handleMoveCell(cell.id, 'down')}
+              onChangeType={(t) => handleChangeType(cell.id, t)}
+              onAddBelow={(t) => handleAddCell(cell.id, t)}
+            />
+          ))
+        )}
       </div>
     </div>
   );

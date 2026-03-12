@@ -613,6 +613,7 @@ Keep it concise - no more than 6-8 sentences total.`,
     <div className="h-full min-h-0">
       {isActiveNotebook ? (
         <NotebookEditor
+          key={activeFile}
           value={files[activeFile] || ''}
           onChange={handleFileChange}
           onRunCode={handleNotebookRunCode}
