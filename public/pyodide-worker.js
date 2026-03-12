@@ -3660,14 +3660,13 @@ if '/home/pyodide' not in _sys.path:
       f => f !== mainFile && f.endsWith('.py') && !f.includes('/')
     );
     for (const filename of otherPyFiles) {
-      const moduleName = filename.replace(/\.py$/, '');
       await py.runPythonAsync(`
-import importlib as _il, builtins as _builtins
-_mod = _il.import_module('${moduleName}')
-for _name in dir(_mod):
-    if not _name.startswith('_'):
-        _builtins.__dict__[_name] = getattr(_mod, _name)
-del _il, _mod, _name
+import builtins as _builtins
+_ns = {}
+exec(open('/home/pyodide/${filename}').read(), _ns)
+for _attr, _val in _ns.items():
+    if not _attr.startswith('_'):
+        _builtins.__dict__[_attr] = _val
 `);
     }
 
