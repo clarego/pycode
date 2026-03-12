@@ -3660,8 +3660,16 @@ if '/home/pyodide' not in _sys.path:
       f => f !== mainFile && f.endsWith('.py') && !f.includes('/')
     );
     for (const filename of otherPyFiles) {
-      const src = sanitizeCode(files[filename] || '');
-      await py.runPythonAsync(src);
+      const moduleName = filename.replace(/\.py$/, '');
+      await py.runPythonAsync(`
+import importlib as _il
+if '${moduleName}' in _il.sys.modules:
+    del _il.sys.modules['${moduleName}']
+${moduleName} = _il.import_module('${moduleName}')
+for _n in dir(${moduleName}):
+    if not _n.startswith('_'):
+        globals()[_n] = getattr(${moduleName}, _n)
+`);
     }
 
     let vfCode = '_flask_virtual_files = {\n';
