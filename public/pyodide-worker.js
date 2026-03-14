@@ -3669,6 +3669,13 @@ ${moduleName} = _il.import_module('${moduleName}')
 for _n in dir(${moduleName}):
     if not _n.startswith('_'):
         globals()[_n] = getattr(${moduleName}, _n)
+if '${moduleName}' not in globals() or not callable(globals().get('${moduleName}')):
+    def _make_runner(mod):
+        def _runner():
+            import runpy as _rp
+            _rp.run_module(mod, run_name='__main__', alter_sys=True)
+        return _runner
+    globals()['${moduleName}'] = _make_runner('${moduleName}')
 `);
     }
 
@@ -3811,8 +3818,19 @@ elif _turtle_turtles or _turtle_draw_items:
         !l.includes('run_async') &&
         !l.includes('coroutine = eval')
     );
-    const friendlyMsg =
+    let friendlyMsg =
       relevantLines.length > 0 ? relevantLines.join('\n').trim() : errorMsg;
+
+    const nameErrorMatch = friendlyMsg.match(/NameError: name '(\w+)' is not defined/);
+    if (nameErrorMatch) {
+      const missingName = nameErrorMatch[1];
+      const matchingFile = Object.keys(files).find(f => f === `${missingName}.py`);
+      if (matchingFile) {
+        friendlyMsg += `\n\nHint: A file named '${matchingFile}' exists but '${missingName}()' is not a callable in it. Make sure '${matchingFile}' defines a function named '${missingName}', or the file runs as a script when called.`;
+      } else {
+        friendlyMsg += `\n\nHint: '${missingName}' is not defined. If you meant to call a file, add '${missingName}.py' to your files.`;
+      }
+    }
 
     self.postMessage({
       type: 'error',
