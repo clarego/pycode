@@ -25,7 +25,10 @@ interface NotebookCellProps {
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s
+    .replace(/&(?!nbsp;|amp;|lt;|gt;|#\d+;|#x[\da-fA-F]+;)/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function inlineMarkdown(text: string): string {
@@ -56,6 +59,24 @@ function simpleMarkdown(src: string): string {
   while (i < lines.length) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      const lang = trimmed.slice(3).trim();
+      i++;
+      const codeLines: string[] = [];
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++;
+      const escaped = codeLines.map(l => escapeHtml(l)).join('\n');
+      parts.push(
+        `<div class="my-2 rounded-md overflow-hidden border border-slate-200">`
+        + (lang ? `<div class="bg-slate-100 px-3 py-1 text-[10px] font-mono text-slate-500 border-b border-slate-200">${escapeHtml(lang)}</div>` : '')
+        + `<pre class="bg-slate-50 px-3 py-2 overflow-x-auto"><code class="text-[12px] font-mono text-slate-800 whitespace-pre">${escaped}</code></pre></div>`
+      );
+      continue;
+    }
 
     if (trimmed.startsWith('|') && trimmed.endsWith('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
       const headers = parseTableRow(trimmed);
@@ -107,8 +128,8 @@ function simpleMarkdown(src: string): string {
       continue;
     } else if (trimmed.startsWith('---')) {
       parts.push('<hr class="border-slate-200 my-2" />');
-    } else if (trimmed.startsWith('&gt;') || trimmed.startsWith('>')) {
-      const raw = trimmed.startsWith('&gt;') ? trimmed.slice(4).trim() : trimmed.slice(1).trim();
+    } else if (trimmed.startsWith('>')) {
+      const raw = trimmed.slice(1).trim();
       parts.push(`<blockquote class="border-l-4 border-slate-300 pl-3 my-1 text-slate-600 italic">${inlineMarkdown(raw)}</blockquote>`);
     } else if (trimmed === '') {
       parts.push('<div class="h-2"></div>');
