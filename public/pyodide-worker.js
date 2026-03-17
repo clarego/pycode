@@ -1597,20 +1597,27 @@ class _PgSurface:
         r = _PgRect(rect) if not isinstance(rect, _PgRect) else rect
         s = _PgSurface((r.width, r.height))
         return s
+    def scroll(self, dx=0, dy=0): pass
+    def get_abs_offset(self): return (0, 0)
+    def get_abs_parent(self): return self
+    def get_offset(self): return (0, 0)
+    def get_parent(self): return None
+    def get_bounding_rect(self, min_alpha=1): return _PgRect(0, 0, self._width, self._height)
+    def get_view(self, kind='2'): return self
+    def get_buffer(self): return None
     def lock(self): pass
     def unlock(self): pass
     def mustlock(self): return False
     def get_locked(self): return False
     def get_locks(self): return ()
 
-def _pg_send_frame():
+def _pg_send_frame(force=False):
     global _pg_display_surface, _pg_last_flip_time, _pg_frame_count
     if _pg_display_surface is None:
         return
     now = _pgtime.time()
-    if now - _pg_last_flip_time < _pg_flip_interval:
+    if not force and now - _pg_last_flip_time < _pg_flip_interval:
         _pg_frame_count += 1
-        _pg_display_surface._commands = []
         return
     _pg_last_flip_time = now
     _pg_frame_count += 1
@@ -1665,17 +1672,20 @@ def _pg_display_get_surface():
     return _pg_display_surface
 
 async def _pg_display_flip():
-    _pg_send_frame()
+    _pg_send_frame(force=True)
     await _pg_asyncio.sleep(0)
 
 async def _pg_display_update(rects=None):
-    _pg_send_frame()
+    _pg_send_frame(force=True)
     await _pg_asyncio.sleep(0)
 
 def _pg_display_set_icon(surface): pass
 def _pg_display_iconify(): pass
 def _pg_display_toggle_fullscreen(): pass
 def _pg_display_get_driver(): return 'web'
+def _pg_display_get_active(): return _pg_display_surface is not None
+def _pg_display_list_modes(depth=0, flags=0): return [(800, 600), (1024, 768), (1280, 720), (1920, 1080)]
+def _pg_display_mode_ok(size, flags=0, depth=0): return 32
 def _pg_display_Info():
     class _Info:
         hw = 0; wm = 1; video_mem = 0
@@ -1695,6 +1705,9 @@ _pg_display_mod.set_icon = _pg_display_set_icon
 _pg_display_mod.iconify = _pg_display_iconify
 _pg_display_mod.toggle_fullscreen = _pg_display_toggle_fullscreen
 _pg_display_mod.get_driver = _pg_display_get_driver
+_pg_display_mod.get_active = _pg_display_get_active
+_pg_display_mod.list_modes = _pg_display_list_modes
+_pg_display_mod.mode_ok = _pg_display_mode_ok
 _pg_display_mod.Info = _pg_display_Info
 
 _pg_draw_mod = types.ModuleType('pygame.draw')
@@ -1936,18 +1949,25 @@ class _PgClock:
         self._dt = 0
         self._target_fps = 0
         self._frame_count = 0
-    def tick(self, fps=0):
+    async def tick(self, fps=0):
         now = _pgtime.time()
         self._dt = now - self._last_tick
-        self._last_tick = now
         self._target_fps = fps
         self._frame_count += 1
         dt_ms = int(self._dt * 1000)
-        if dt_ms == 0:
-            return 16
-        return dt_ms
-    def tick_busy_loop(self, fps=0):
-        return self.tick(fps)
+        if fps > 0:
+            target_dt = 1.0 / fps
+            wait = target_dt - self._dt
+            if wait > 0.001:
+                await _pg_asyncio.sleep(wait)
+            else:
+                await _pg_asyncio.sleep(0)
+        else:
+            await _pg_asyncio.sleep(0)
+        self._last_tick = _pgtime.time()
+        return max(dt_ms, 1)
+    async def tick_busy_loop(self, fps=0):
+        return await self.tick(fps)
     def get_time(self):
         return int(self._dt * 1000)
     def get_rawtime(self):
@@ -1958,10 +1978,14 @@ class _PgClock:
 def _pg_time_get_ticks():
     return int((_pgtime.time() - _pg_start_time) * 1000) if _pg_start_time else 0
 
-def _pg_time_wait(ms):
+async def _pg_time_wait(ms):
+    if ms > 0:
+        await _pg_asyncio.sleep(ms / 1000.0)
     return int(ms)
 
-def _pg_time_delay(ms):
+async def _pg_time_delay(ms):
+    if ms > 0:
+        await _pg_asyncio.sleep(ms / 1000.0)
     return int(ms)
 
 def _pg_time_set_timer(event_type, millis, loops=0):
@@ -1975,17 +1999,28 @@ _pg_time_mod.set_timer = _pg_time_set_timer
 
 _pg_key_mod = types.ModuleType('pygame.key')
 
-K_BACKSPACE = 8; K_TAB = 9; K_RETURN = 13; K_ESCAPE = 27; K_SPACE = 32
-K_UP = 273; K_DOWN = 274; K_RIGHT = 275; K_LEFT = 276
+K_BACKSPACE = 8; K_TAB = 9; K_CLEAR = 12; K_RETURN = 13; K_PAUSE = 19
+K_ESCAPE = 27; K_SPACE = 32; K_EXCLAIM = 33; K_QUOTEDBL = 34; K_HASH = 35
+K_DOLLAR = 36; K_AMPERSAND = 38; K_QUOTE = 39; K_LEFTPAREN = 40; K_RIGHTPAREN = 41
+K_ASTERISK = 42; K_PLUS = 43; K_COMMA = 44; K_MINUS = 45; K_PERIOD = 46; K_SLASH = 47
+K_0 = 48; K_1 = 49; K_2 = 50; K_3 = 51; K_4 = 52; K_5 = 53; K_6 = 54; K_7 = 55; K_8 = 56; K_9 = 57
+K_COLON = 58; K_SEMICOLON = 59; K_LESS = 60; K_EQUALS = 61; K_GREATER = 62; K_QUESTION = 63; K_AT = 64
+K_LEFTBRACKET = 91; K_BACKSLASH = 92; K_RIGHTBRACKET = 93; K_CARET = 94; K_UNDERSCORE = 95; K_BACKQUOTE = 96
 K_a = 97; K_b = 98; K_c = 99; K_d = 100; K_e = 101; K_f = 102; K_g = 103
 K_h = 104; K_i = 105; K_j = 106; K_k = 107; K_l = 108; K_m = 109; K_n = 110
 K_o = 111; K_p = 112; K_q = 113; K_r = 114; K_s = 115; K_t = 116; K_u = 117
 K_v = 118; K_w = 119; K_x = 120; K_y = 121; K_z = 122
-K_0 = 48; K_1 = 49; K_2 = 50; K_3 = 51; K_4 = 52; K_5 = 53; K_6 = 54; K_7 = 55; K_8 = 56; K_9 = 57
+K_DELETE = 127
+K_UP = 273; K_DOWN = 274; K_RIGHT = 275; K_LEFT = 276
+K_INSERT = 277; K_HOME = 278; K_END = 279; K_PAGEUP = 280; K_PAGEDOWN = 281
 K_F1 = 282; K_F2 = 283; K_F3 = 284; K_F4 = 285; K_F5 = 286; K_F6 = 287
 K_F7 = 288; K_F8 = 289; K_F9 = 290; K_F10 = 291; K_F11 = 292; K_F12 = 293
-K_LSHIFT = 304; K_RSHIFT = 303; K_LCTRL = 306; K_RCTRL = 305; K_LALT = 308; K_RALT = 307
+K_NUMLOCK = 300; K_CAPSLOCK = 301; K_SCROLLOCK = 302
+K_RSHIFT = 303; K_LSHIFT = 304; K_RCTRL = 305; K_LCTRL = 306; K_RALT = 307; K_LALT = 308
+K_LSUPER = 311; K_RSUPER = 312; K_MODE = 313; K_HELP = 315; K_PRINT = 316; K_SYSREQ = 317; K_BREAK = 318; K_MENU = 319
 KMOD_NONE = 0; KMOD_LSHIFT = 1; KMOD_RSHIFT = 2; KMOD_SHIFT = 3; KMOD_LCTRL = 64; KMOD_RCTRL = 128; KMOD_CTRL = 192
+KMOD_LALT = 256; KMOD_RALT = 512; KMOD_ALT = 768; KMOD_LMETA = 1024; KMOD_RMETA = 2048; KMOD_META = 3072
+KMOD_NUM = 4096; KMOD_CAPS = 8192; KMOD_MODE = 16384
 
 class _PgKeyState:
     def __init__(self):
@@ -2007,19 +2042,30 @@ def _pg_key_get_mods():
 
 def _pg_key_name(key):
     names = {K_UP: 'up', K_DOWN: 'down', K_LEFT: 'left', K_RIGHT: 'right',
-             K_SPACE: 'space', K_RETURN: 'return', K_ESCAPE: 'escape'}
+             K_SPACE: 'space', K_RETURN: 'return', K_ESCAPE: 'escape',
+             K_BACKSPACE: 'backspace', K_TAB: 'tab', K_DELETE: 'delete',
+             K_INSERT: 'insert', K_HOME: 'home', K_END: 'end',
+             K_PAGEUP: 'page up', K_PAGEDOWN: 'page down',
+             K_LSHIFT: 'left shift', K_RSHIFT: 'right shift',
+             K_LCTRL: 'left ctrl', K_RCTRL: 'right ctrl',
+             K_LALT: 'left alt', K_RALT: 'right alt',
+             K_CAPSLOCK: 'caps lock', K_NUMLOCK: 'num lock',
+             K_MINUS: '-', K_PLUS: '+', K_COMMA: ',', K_PERIOD: '.'}
     if key in names: return names[key]
     if 97 <= key <= 122: return chr(key)
     if 48 <= key <= 57: return chr(key)
+    if 282 <= key <= 293: return f'f{key - 281}'
     return f'[{key}]'
 
 def _pg_key_set_repeat(delay=0, interval=0): pass
 def _pg_key_get_repeat(): return (0, 0)
 def _pg_key_get_focused(): return True
+def _pg_key_key_code(name): return 0
 
 _pg_key_mod.get_pressed = _pg_key_get_pressed
 _pg_key_mod.get_mods = _pg_key_get_mods
 _pg_key_mod.name = _pg_key_name
+_pg_key_mod.key_code = _pg_key_key_code
 _pg_key_mod.set_repeat = _pg_key_set_repeat
 _pg_key_mod.get_repeat = _pg_key_get_repeat
 _pg_key_mod.get_focused = _pg_key_get_focused
@@ -2332,7 +2378,7 @@ def _pg_quit():
     global _pg_initialized, _pg_quit_requested
     _pg_initialized = False
     _pg_quit_requested = True
-    _pg_send_frame()
+    _pg_send_frame(force=True)
 
 _pg_main.init = _pg_init
 _pg_main.quit = _pg_quit
@@ -2349,26 +2395,9 @@ _pg_main.VIDEORESIZE = VIDEORESIZE
 _pg_main.VIDEOEXPOSE = VIDEOEXPOSE
 _pg_main.USEREVENT = USEREVENT
 
-_pg_main.K_BACKSPACE = K_BACKSPACE; _pg_main.K_TAB = K_TAB
-_pg_main.K_RETURN = K_RETURN; _pg_main.K_ESCAPE = K_ESCAPE; _pg_main.K_SPACE = K_SPACE
-_pg_main.K_UP = K_UP; _pg_main.K_DOWN = K_DOWN; _pg_main.K_RIGHT = K_RIGHT; _pg_main.K_LEFT = K_LEFT
-_pg_main.K_a = K_a; _pg_main.K_b = K_b; _pg_main.K_c = K_c; _pg_main.K_d = K_d; _pg_main.K_e = K_e
-_pg_main.K_f = K_f; _pg_main.K_g = K_g; _pg_main.K_h = K_h; _pg_main.K_i = K_i; _pg_main.K_j = K_j
-_pg_main.K_k = K_k; _pg_main.K_l = K_l; _pg_main.K_m = K_m; _pg_main.K_n = K_n; _pg_main.K_o = K_o
-_pg_main.K_p = K_p; _pg_main.K_q = K_q; _pg_main.K_r = K_r; _pg_main.K_s = K_s; _pg_main.K_t = K_t
-_pg_main.K_u = K_u; _pg_main.K_v = K_v; _pg_main.K_w = K_w; _pg_main.K_x = K_x; _pg_main.K_y = K_y
-_pg_main.K_z = K_z
-_pg_main.K_0 = K_0; _pg_main.K_1 = K_1; _pg_main.K_2 = K_2; _pg_main.K_3 = K_3; _pg_main.K_4 = K_4
-_pg_main.K_5 = K_5; _pg_main.K_6 = K_6; _pg_main.K_7 = K_7; _pg_main.K_8 = K_8; _pg_main.K_9 = K_9
-_pg_main.K_F1 = K_F1; _pg_main.K_F2 = K_F2; _pg_main.K_F3 = K_F3; _pg_main.K_F4 = K_F4
-_pg_main.K_F5 = K_F5; _pg_main.K_F6 = K_F6; _pg_main.K_F7 = K_F7; _pg_main.K_F8 = K_F8
-_pg_main.K_F9 = K_F9; _pg_main.K_F10 = K_F10; _pg_main.K_F11 = K_F11; _pg_main.K_F12 = K_F12
-_pg_main.K_LSHIFT = K_LSHIFT; _pg_main.K_RSHIFT = K_RSHIFT
-_pg_main.K_LCTRL = K_LCTRL; _pg_main.K_RCTRL = K_RCTRL
-_pg_main.K_LALT = K_LALT; _pg_main.K_RALT = K_RALT
-_pg_main.KMOD_NONE = KMOD_NONE; _pg_main.KMOD_LSHIFT = KMOD_LSHIFT
-_pg_main.KMOD_RSHIFT = KMOD_RSHIFT; _pg_main.KMOD_SHIFT = KMOD_SHIFT
-_pg_main.KMOD_LCTRL = KMOD_LCTRL; _pg_main.KMOD_RCTRL = KMOD_RCTRL; _pg_main.KMOD_CTRL = KMOD_CTRL
+for _k, _v in list(globals().items()):
+    if (_k.startswith('K_') or _k.startswith('KMOD_')) and isinstance(_v, int):
+        setattr(_pg_main, _k, _v)
 
 _pg_main.HWSURFACE = 1; _pg_main.DOUBLEBUF = 0x40000000; _pg_main.FULLSCREEN = 0x80000000
 _pg_main.RESIZABLE = 0x00000010; _pg_main.NOFRAME = 0x00000020; _pg_main.SCALED = 0x00000200
@@ -3434,6 +3463,18 @@ function transformPygameCode(code) {
   if (!codeNeedsPackage(code, 'pygame')) {
     return code;
   }
+  const stmtPatterns = [
+    /display\.update\s*\(/,
+    /display\.flip\s*\(/,
+  ];
+  const callPatterns = [
+    /\.tick\s*\(/,
+    /\.tick_busy_loop\s*\(/,
+    /time\.wait\s*\(/,
+    /time\.delay\s*\(/,
+    /pygame\.time\.wait\s*\(/,
+    /pygame\.time\.delay\s*\(/,
+  ];
   const lines = code.split('\n');
   const transformed = [];
   for (const line of lines) {
@@ -3443,12 +3484,23 @@ function transformPygameCode(code) {
       transformed.push(line);
       continue;
     }
-    if (/display\.update\s*\(/.test(stripped) && !stripped.startsWith('await ')) {
+    if (/\bawait\b/.test(stripped)) {
+      transformed.push(line);
+      continue;
+    }
+    if (stmtPatterns.some(p => p.test(stripped))) {
       transformed.push(indent + 'await ' + stripped);
       continue;
     }
-    if (/display\.flip\s*\(/.test(stripped) && !stripped.startsWith('await ')) {
-      transformed.push(indent + 'await ' + stripped);
+    if (callPatterns.some(p => p.test(stripped))) {
+      let out = line;
+      out = out.replace(/((?:\w+\.)*tick_busy_loop\s*\([^)]*\))/, '(await $1)');
+      out = out.replace(/((?:\w+\.)*tick\s*\([^)]*\))/, '(await $1)');
+      out = out.replace(/((?:\w+\.)*time\.wait\s*\([^)]*\))/, '(await $1)');
+      out = out.replace(/((?:\w+\.)*time\.delay\s*\([^)]*\))/, '(await $1)');
+      out = out.replace(/(pygame\.time\.wait\s*\([^)]*\))/, '(await $1)');
+      out = out.replace(/(pygame\.time\.delay\s*\([^)]*\))/, '(await $1)');
+      transformed.push(out);
       continue;
     }
     transformed.push(line);

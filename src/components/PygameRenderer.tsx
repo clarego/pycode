@@ -175,14 +175,23 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 const KEY_MAP: Record<string, number> = {
   ArrowUp: 273, ArrowDown: 274, ArrowRight: 275, ArrowLeft: 276,
   Backspace: 8, Tab: 9, Enter: 13, Escape: 27, ' ': 32,
+  Delete: 127, Insert: 277, Home: 278, End: 279,
+  PageUp: 280, PageDown: 281,
   a: 97, b: 98, c: 99, d: 100, e: 101, f: 102, g: 103, h: 104, i: 105,
   j: 106, k: 107, l: 108, m: 109, n: 110, o: 111, p: 112, q: 113, r: 114,
   s: 115, t: 116, u: 117, v: 118, w: 119, x: 120, y: 121, z: 122,
+  A: 97, B: 98, C: 99, D: 100, E: 101, F: 102, G: 103, H: 104, I: 105,
+  J: 106, K: 107, L: 108, M: 109, N: 110, O: 111, P: 112, Q: 113, R: 114,
+  S: 115, T: 116, U: 117, V: 118, W: 119, X: 120, Y: 121, Z: 122,
   '0': 48, '1': 49, '2': 50, '3': 51, '4': 52, '5': 53, '6': 54, '7': 55, '8': 56, '9': 57,
   F1: 282, F2: 283, F3: 284, F4: 285, F5: 286, F6: 287,
   F7: 288, F8: 289, F9: 290, F10: 291, F11: 292, F12: 293,
-  ShiftLeft: 304, ShiftRight: 303, ControlLeft: 306, ControlRight: 305,
-  AltLeft: 308, AltRight: 307,
+  Shift: 304, ShiftLeft: 304, ShiftRight: 303,
+  Control: 306, ControlLeft: 306, ControlRight: 305,
+  Alt: 308, AltLeft: 308, AltRight: 307,
+  CapsLock: 301, NumLock: 300, ScrollLock: 302,
+  '-': 45, '=': 61, '[': 91, ']': 93, '\\': 92,
+  ';': 59, "'": 39, ',': 44, '.': 46, '/': 47, '`': 96,
 };
 
 export default function PygameRenderer({ frame, onEvent }: PygameRendererProps) {
