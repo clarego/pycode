@@ -3656,8 +3656,9 @@ if '/home/pyodide' not in _sys.path:
     _sys.path.insert(0, '/home/pyodide')
 `);
 
+    const isNotebookRun = mainFile === '__notebook_exec__.py';
     const otherPyFiles = Object.keys(files).filter(
-      f => f !== mainFile && f.endsWith('.py') && !f.includes('/')
+      f => f !== mainFile && f.endsWith('.py') && !f.includes('/') && !(isNotebookRun && f === 'main.py')
     );
     for (const filename of otherPyFiles) {
       const moduleName = filename.replace(/\.py$/, '');

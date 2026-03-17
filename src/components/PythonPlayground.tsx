@@ -481,9 +481,9 @@ Keep it concise - no more than 6-8 sentences total.`,
     (code: string) => {
       const cleanFiles: Record<string, string> = {};
       for (const [k, v] of Object.entries(files)) {
-        if (!k.endsWith('.ipynb')) {
-          cleanFiles[k] = v;
-        }
+        if (k.endsWith('.ipynb')) continue;
+        if (k.endsWith('.py') && v.trimStart().startsWith('{')) continue;
+        cleanFiles[k] = v;
       }
       cleanFiles['__notebook_exec__.py'] = code;
       runCode(cleanFiles, '__notebook_exec__.py');
