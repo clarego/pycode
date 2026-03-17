@@ -24,28 +24,101 @@ interface NotebookCellProps {
   onAddBelow: (type: 'code' | 'markdown') => void;
 }
 
-function simpleMarkdown(src: string): string {
-  let html = src
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
-  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold mt-3 mb-1">$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-semibold mt-3 mb-1">$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-3 mb-2">$1</h1>');
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 py-0.5 rounded text-[12px] font-mono">$1</code>');
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_: string, text: string, url: string) => {
-    if (url.trim().toLowerCase().startsWith('javascript:')) return text;
-    return `<a href="${url}" class="text-sky-600 underline" target="_blank" rel="noopener noreferrer">${text}</a>`;
+function inlineMarkdown(text: string): string {
+  let s = escapeHtml(text);
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  s = s.replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 py-0.5 rounded text-[12px] font-mono">$1</code>');
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_: string, t: string, url: string) => {
+    if (url.trim().toLowerCase().startsWith('javascript:')) return t;
+    return `<a href="${url}" class="text-sky-600 underline" target="_blank" rel="noopener noreferrer">${t}</a>`;
   });
-  html = html.replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>');
-  html = html.replace(/(<li.*<\/li>\n?)+/g, (match) => `<ul class="my-1">${match}</ul>`);
-  html = html.replace(/\n\n/g, '</p><p class="my-1.5">');
-  html = html.replace(/\n/g, '<br/>');
+  return s;
+}
 
-  return `<p class="my-1.5">${html}</p>`;
+function parseTableRow(line: string): string[] {
+  return line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+}
+
+function isTableSeparator(line: string): boolean {
+  return /^\|?[\s-:]+(\|[\s-:]+)+\|?$/.test(line.trim());
+}
+
+function simpleMarkdown(src: string): string {
+  const lines = src.split('\n');
+  const parts: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('|') && trimmed.endsWith('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      const headers = parseTableRow(trimmed);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        rows.push(parseTableRow(lines[i].trim()));
+        i++;
+      }
+      let table = '<table class="border-collapse my-2 text-sm w-auto">';
+      table += '<thead><tr>';
+      for (const h of headers) {
+        table += `<th class="border border-slate-300 px-3 py-1.5 bg-slate-100 font-semibold text-left">${inlineMarkdown(h)}</th>`;
+      }
+      table += '</tr></thead><tbody>';
+      for (const row of rows) {
+        table += '<tr>';
+        for (let c = 0; c < headers.length; c++) {
+          table += `<td class="border border-slate-300 px-3 py-1.5">${inlineMarkdown(row[c] || '')}</td>`;
+        }
+        table += '</tr>';
+      }
+      table += '</tbody></table>';
+      parts.push(table);
+      continue;
+    }
+
+    if (trimmed.startsWith('### ')) {
+      parts.push(`<h3 class="text-base font-semibold mt-3 mb-1">${inlineMarkdown(trimmed.slice(4))}</h3>`);
+    } else if (trimmed.startsWith('## ')) {
+      parts.push(`<h2 class="text-lg font-semibold mt-3 mb-1">${inlineMarkdown(trimmed.slice(3))}</h2>`);
+    } else if (trimmed.startsWith('# ')) {
+      parts.push(`<h1 class="text-xl font-bold mt-3 mb-2">${inlineMarkdown(trimmed.slice(2))}</h1>`);
+    } else if (trimmed.startsWith('- ')) {
+      const items: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith('- ')) {
+        items.push(`<li class="ml-4 list-disc">${inlineMarkdown(lines[i].trim().slice(2))}</li>`);
+        i++;
+      }
+      parts.push(`<ul class="my-1">${items.join('')}</ul>`);
+      continue;
+    } else if (/^\d+\. /.test(trimmed)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\d+\. /.test(lines[i].trim())) {
+        items.push(`<li class="ml-4 list-decimal">${inlineMarkdown(lines[i].trim().replace(/^\d+\. /, ''))}</li>`);
+        i++;
+      }
+      parts.push(`<ol class="my-1">${items.join('')}</ol>`);
+      continue;
+    } else if (trimmed.startsWith('---')) {
+      parts.push('<hr class="border-slate-200 my-2" />');
+    } else if (trimmed.startsWith('&gt;') || trimmed.startsWith('>')) {
+      const raw = trimmed.startsWith('&gt;') ? trimmed.slice(4).trim() : trimmed.slice(1).trim();
+      parts.push(`<blockquote class="border-l-4 border-slate-300 pl-3 my-1 text-slate-600 italic">${inlineMarkdown(raw)}</blockquote>`);
+    } else if (trimmed === '') {
+      parts.push('<div class="h-2"></div>');
+    } else {
+      parts.push(`<p class="my-1.5">${inlineMarkdown(trimmed)}</p>`);
+    }
+    i++;
+  }
+
+  return parts.join('');
 }
 
 function AddCellButton({ onAdd }: { onAdd: (type: 'code' | 'markdown') => void }) {
