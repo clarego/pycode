@@ -3663,19 +3663,22 @@ if '/home/pyodide' not in _sys.path:
       const moduleName = filename.replace(/\.py$/, '');
       await py.runPythonAsync(`
 import importlib as _il
-if '${moduleName}' in _il.sys.modules:
-    del _il.sys.modules['${moduleName}']
-${moduleName} = _il.import_module('${moduleName}')
-for _n in dir(${moduleName}):
-    if not _n.startswith('_'):
-        globals()[_n] = getattr(${moduleName}, _n)
-if '${moduleName}' not in globals() or not callable(globals().get('${moduleName}')):
-    def _make_runner(mod):
-        def _runner():
-            import runpy as _rp
-            _rp.run_module(mod, run_name='__main__', alter_sys=True)
-        return _runner
-    globals()['${moduleName}'] = _make_runner('${moduleName}')
+try:
+    if '${moduleName}' in _il.sys.modules:
+        del _il.sys.modules['${moduleName}']
+    _mod_${moduleName} = _il.import_module('${moduleName}')
+    for _n in dir(_mod_${moduleName}):
+        if not _n.startswith('_'):
+            globals()[_n] = getattr(_mod_${moduleName}, _n)
+    if '${moduleName}' not in globals() or not callable(globals().get('${moduleName}')):
+        def _make_runner(mod):
+            def _runner():
+                import runpy as _rp
+                _rp.run_module(mod, run_name='__main__', alter_sys=True)
+            return _runner
+        globals()['${moduleName}'] = _make_runner('${moduleName}')
+except Exception:
+    pass
 `);
     }
 
