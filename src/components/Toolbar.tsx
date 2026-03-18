@@ -271,19 +271,15 @@ export default function Toolbar({
             <span className="hidden md:inline">Modules</span>
           </a>
 
-          {profile && (
-            <>
-              <div className="w-px h-5 bg-slate-600 mx-0.5" />
-              <button onClick={onSaveProject} className="flex items-center gap-1.5 px-2.5 py-1.5 text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/40 text-xs font-medium rounded transition-colors border border-emerald-700/50" title="Save project">
-                <Save size={13} />
-                <span className="hidden md:inline">Save</span>
-              </button>
-              <button onClick={onOpenProject} className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors border border-slate-600/50" title="Open saved project">
-                <FolderOpen size={13} />
-                <span className="hidden md:inline">Open</span>
-              </button>
-            </>
-          )}
+          <div className="w-px h-5 bg-slate-600 mx-0.5" />
+          <button onClick={onSaveProject} className="flex items-center gap-1.5 px-2.5 py-1.5 text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/40 text-xs font-medium rounded transition-colors border border-emerald-700/50" title="Save project">
+            <Save size={13} />
+            <span className="hidden md:inline">Save</span>
+          </button>
+          <button onClick={onOpenProject} className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors border border-slate-600/50" title="Open saved project">
+            <FolderOpen size={13} />
+            <span className="hidden md:inline">Open</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -408,12 +404,12 @@ export default function Toolbar({
                 <button onClick={() => { onReset(); setShowMobileMore(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
                   <RotateCcw size={13} /> Reset
                 </button>
-                {profile && onSaveProject && (
+                {onSaveProject && (
                   <button onClick={() => { onSaveProject(); setShowMobileMore(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-emerald-300 hover:text-white hover:bg-slate-700 transition-colors">
                     <Save size={13} /> Save Project
                   </button>
                 )}
-                {profile && onOpenProject && (
+                {onOpenProject && (
                   <button onClick={() => { onOpenProject(); setShowMobileMore(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
                     <FolderOpen size={13} /> Open Project
                   </button>

@@ -880,8 +880,22 @@ Keep it concise - no more than 6-8 sentences total.`,
           onShowLogin={onShowLogin}
           onShowChangePassword={onShowChangePassword}
           apiKeyLoaded={!!apiKey}
-          onSaveProject={profile ? () => setShowSaveDialog(true) : undefined}
-          onOpenProject={profile ? () => setShowOpenDialog(true) : undefined}
+          onSaveProject={() => {
+            if (!profile) {
+              setToast({ message: 'Please log in to save your project.', type: 'error' });
+              onShowLogin?.();
+              return;
+            }
+            setShowSaveDialog(true);
+          }}
+          onOpenProject={() => {
+            if (!profile) {
+              setToast({ message: 'Please log in to open saved projects.', type: 'error' });
+              onShowLogin?.();
+              return;
+            }
+            setShowOpenDialog(true);
+          }}
           headerSlot={headerSlot}
         />
         <div className="flex-1 min-h-0">
@@ -989,8 +1003,22 @@ Keep it concise - no more than 6-8 sentences total.`,
         onShowLogin={onShowLogin}
         onShowChangePassword={onShowChangePassword}
         apiKeyLoaded={!!apiKey}
-        onSaveProject={profile ? () => setShowSaveDialog(true) : undefined}
-        onOpenProject={profile ? () => setShowOpenDialog(true) : undefined}
+        onSaveProject={() => {
+          if (!profile) {
+            setToast({ message: 'Please log in to save your project.', type: 'error' });
+            onShowLogin?.();
+            return;
+          }
+          setShowSaveDialog(true);
+        }}
+        onOpenProject={() => {
+          if (!profile) {
+            setToast({ message: 'Please log in to open saved projects.', type: 'error' });
+            onShowLogin?.();
+            return;
+          }
+          setShowOpenDialog(true);
+        }}
         onShowSubmissions={profile ? () => setShowMySubmissions(true) : undefined}
       />
 
