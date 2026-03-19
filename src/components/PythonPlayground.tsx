@@ -16,7 +16,7 @@ import type { FormState } from './gui-designer/types';
 import { usePyodide } from '../hooks/usePyodide';
 import { useTheme } from './ThemeContext';
 import { useSessionRecorder } from '../hooks/useSessionRecorder';
-import { serializeNotebook, createEmptyNotebook } from '../lib/notebook';
+import { serializeNotebook, createEmptyNotebook, parseNotebook, extractCodeCells } from '../lib/notebook';
 import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationCap, Lightbulb, CheckCircle2 } from 'lucide-react';
 
 import { saveSnippet } from '../lib/snippets';
@@ -179,7 +179,23 @@ export default function PythonPlayground({
   }, []);
 
   const handleRun = useCallback(() => {
-    runCode(files, activeFile);
+    if (activeFile.endsWith('.ipynb')) {
+      const content = files[activeFile] || '';
+      if (!content.trim()) return;
+      const notebook = parseNotebook(content);
+      const code = extractCodeCells(notebook);
+      if (!code.trim()) return;
+      const cleanFiles: Record<string, string> = {};
+      for (const [k, v] of Object.entries(files)) {
+        if (k.endsWith('.ipynb')) continue;
+        if (k.endsWith('.py') && v.trimStart().startsWith('{')) continue;
+        cleanFiles[k] = v;
+      }
+      cleanFiles['__notebook_exec__.py'] = code;
+      runCode(cleanFiles, '__notebook_exec__.py');
+    } else {
+      runCode(files, activeFile);
+    }
   }, [files, activeFile, runCode]);
 
   const handleFileChange = useCallback(
