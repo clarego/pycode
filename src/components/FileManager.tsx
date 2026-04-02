@@ -425,9 +425,12 @@ export default function FileManager({
   useEffect(() => {
     if (!ctxMenu) return;
     function handleClick() { setCtxMenu(null); }
-    window.addEventListener('click', handleClick);
-    window.addEventListener('contextmenu', handleClick);
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handleClick);
+      window.addEventListener('contextmenu', handleClick);
+    }, 0);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('click', handleClick);
       window.removeEventListener('contextmenu', handleClick);
     };
