@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, FileCheck, X, FileCode, MessageSquare, Code2 } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, FileCheck, X, FileCode, MessageSquare, Code2, Sparkles, Award } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Submission {
@@ -11,6 +11,9 @@ interface Submission {
   submitted_at: string;
   reviewed: boolean;
   feedback: string | null;
+  ai_grade: string | null;
+  grade: string | null;
+  grade_overridden: boolean;
   tasks: { title: string } | null;
 }
 
@@ -36,6 +39,14 @@ export default function MySubmissions({ username, onClose }: MySubmissionsProps)
 
   useEffect(() => { fetchSubmissions(); }, [fetchSubmissions]);
 
+  const getDisplayGrade = (sub: Submission): { grade: string; isOverride: boolean } | null => {
+    if (sub.grade_overridden && sub.grade) return { grade: sub.grade, isOverride: true };
+    if (sub.ai_grade) return { grade: sub.ai_grade, isOverride: false };
+    return null;
+  };
+
+  const newlyReviewed = submissions.filter(s => s.reviewed && (s.feedback || getDisplayGrade(s)));
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -46,6 +57,12 @@ export default function MySubmissions({ username, onClose }: MySubmissionsProps)
             <span className="text-sm font-semibold text-slate-700">My Submissions</span>
             {!loading && (
               <span className="text-xs text-slate-400">{submissions.length} total</span>
+            )}
+            {!loading && newlyReviewed.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 size={9} />
+                {newlyReviewed.length} marked
+              </span>
             )}
           </div>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded">
@@ -65,16 +82,17 @@ export default function MySubmissions({ username, onClose }: MySubmissionsProps)
               {submissions.map((sub) => {
                 const isExpanded = expandedId === sub.id;
                 const fileCount = sub.files ? Object.keys(sub.files).length : 0;
+                const gradeInfo = getDisplayGrade(sub);
                 return (
                   <div key={sub.id} className="px-5 py-3">
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : sub.id)}
                       className="w-full text-left"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           {sub.tasks ? (
-                            <span className="text-sm font-medium text-slate-800">{sub.tasks.title}</span>
+                            <span className="text-sm font-medium text-slate-800 truncate">{sub.tasks.title}</span>
                           ) : (
                             <span className="flex items-center gap-1 text-sm text-slate-500">
                               <Code2 size={12} />
@@ -82,7 +100,17 @@ export default function MySubmissions({ username, onClose }: MySubmissionsProps)
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {gradeInfo && (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                              gradeInfo.isOverride
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              {gradeInfo.isOverride ? <Award size={9} /> : <Sparkles size={9} />}
+                              {gradeInfo.grade.split('\n')[0]}
+                            </span>
+                          )}
                           <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
                             sub.reviewed
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -108,6 +136,30 @@ export default function MySubmissions({ username, onClose }: MySubmissionsProps)
 
                     {isExpanded && (
                       <div className="mt-3 space-y-2">
+                        {gradeInfo && (
+                          <div className={`p-3 rounded-lg border ${
+                            gradeInfo.isOverride
+                              ? 'bg-sky-50 border-sky-200'
+                              : 'bg-amber-50 border-amber-200'
+                          }`}>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              {gradeInfo.isOverride ? (
+                                <Award size={11} className="text-sky-600" />
+                              ) : (
+                                <Sparkles size={11} className="text-amber-500" />
+                              )}
+                              <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                                gradeInfo.isOverride ? 'text-sky-700' : 'text-amber-700'
+                              }`}>
+                                {gradeInfo.isOverride ? 'Grade' : 'AI Grade'}
+                              </span>
+                            </div>
+                            <p className="text-sm font-mono font-semibold text-slate-800 whitespace-pre-wrap leading-relaxed">
+                              {gradeInfo.grade}
+                            </p>
+                          </div>
+                        )}
+
                         {sub.feedback ? (
                           <div className={`p-3 rounded-lg border ${
                             sub.reviewed
@@ -127,6 +179,7 @@ export default function MySubmissions({ username, onClose }: MySubmissionsProps)
                         ) : (
                           <p className="text-xs text-slate-400 italic">No feedback yet.</p>
                         )}
+
                         {sub.session_share_id && (
                           <a
                             href={`/review/${sub.session_share_id}`}

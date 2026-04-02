@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Loader2, ExternalLink, CheckCircle2, Clock, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { ClipboardList, Loader2, ExternalLink, CheckCircle2, Clock, FileText, ChevronDown, ChevronUp, Sparkles, Award } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface AssignedTask {
@@ -18,6 +18,9 @@ interface SubmissionStatus {
   reviewed: boolean;
   feedback: string | null;
   submitted_at: string;
+  ai_grade: string | null;
+  grade: string | null;
+  grade_overridden: boolean;
 }
 
 interface AssignedTasksProps {
@@ -38,7 +41,7 @@ export default function AssignedTasks({ username }: AssignedTasksProps) {
         .eq('student_id', username),
       supabase
         .from('task_submissions')
-        .select('task_id, reviewed, feedback, submitted_at')
+        .select('task_id, reviewed, feedback, submitted_at, ai_grade, grade, grade_overridden')
         .eq('student_id', username)
         .not('task_id', 'is', null),
     ]);
@@ -123,7 +126,18 @@ export default function AssignedTasks({ username }: AssignedTasksProps) {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {sub?.reviewed && (sub.grade_overridden && sub.grade ? (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-900/40 text-sky-300 border border-sky-700/50">
+                      <Award size={8} />
+                      {sub.grade.split('\n')[0]}
+                    </span>
+                  ) : sub.ai_grade ? (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700/50">
+                      <Sparkles size={8} />
+                      {sub.ai_grade.split('\n')[0]}
+                    </span>
+                  ) : null)}
                   {sub ? (
                     <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${
                       sub.reviewed
