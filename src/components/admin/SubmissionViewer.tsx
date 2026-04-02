@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users, Sparkles, Pencil, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users, Sparkles, Pencil, Check, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
 import type { AnnotationState } from '../../lib/pdfAnnotations';
@@ -633,6 +633,9 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [grading, setGrading] = useState<string | null>(null);
+  const [gradingAll, setGradingAll] = useState(false);
+  const [gradeAllProgress, setGradeAllProgress] = useState<{ done: number; total: number } | null>(null);
+  const gradeAllCancelRef = useRef(false);
   const [viewingFiles, setViewingFiles] = useState<{ files: Record<string, string>; studentName: string } | null>(null);
   const [feedbackSub, setFeedbackSub] = useState<Submission | null>(null);
   const [pdfSub, setPdfSub] = useState<Submission | null>(null);
@@ -696,15 +699,13 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
     await fetchSubmissions();
   };
 
-  const handleAiGrade = useCallback(async (sub: Submission) => {
-    if (!sub.tasks?.marking_scheme || !sub.files) return;
-    setGrading(sub.id);
-    setGradeError(null);
+  const gradeSingleSub = useCallback(async (sub: Submission, opts: { markReviewed?: boolean } = {}) => {
+    if (!sub.files) return;
     try {
       const result = await callAiGrading({
         action: 'grade_submission',
-        taskTitle: sub.tasks.title,
-        markingScheme: sub.tasks.marking_scheme,
+        taskTitle: sub.tasks?.title || 'Playground submission',
+        markingScheme: sub.tasks?.marking_scheme || null,
         submissionFiles: sub.files,
       });
 
@@ -716,25 +717,59 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
       const updatePayload: Record<string, unknown> = {
         ai_grade: gradeLine,
         ai_graded_at: new Date().toISOString(),
+        feedback: feedbackLines || null,
       };
 
-      if (sub.tasks.auto_grade) {
+      if (opts.markReviewed || sub.tasks?.auto_grade) {
         updatePayload.reviewed = true;
-        if (feedbackLines && !sub.feedback) {
-          updatePayload.feedback = feedbackLines;
-        }
       }
 
       await supabase
         .from('task_submissions')
         .update(updatePayload)
         .eq('id', sub.id);
+    } catch (e) {
+      throw e;
+    }
+  }, []);
+
+  const handleAiGrade = useCallback(async (sub: Submission) => {
+    if (!sub.files) return;
+    setGrading(sub.id);
+    setGradeError(null);
+    try {
+      await gradeSingleSub(sub);
       await fetchSubmissions();
     } catch (e) {
       setGradeError(e instanceof Error ? e.message : 'Grading failed');
     }
     setGrading(null);
-  }, [fetchSubmissions]);
+  }, [fetchSubmissions, gradeSingleSub]);
+
+  const handleGradeAll = useCallback(async () => {
+    const toGrade = visibleSubmissionsRef.current.filter(s => s.files && Object.keys(s.files).length > 0);
+    if (toGrade.length === 0) return;
+
+    gradeAllCancelRef.current = false;
+    setGradingAll(true);
+    setGradeAllProgress({ done: 0, total: toGrade.length });
+    setGradeError(null);
+
+    for (let i = 0; i < toGrade.length; i++) {
+      if (gradeAllCancelRef.current) break;
+      const sub = toGrade[i];
+      try {
+        await gradeSingleSub(sub, { markReviewed: true });
+      } catch {
+        // continue with next submission on error
+      }
+      setGradeAllProgress({ done: i + 1, total: toGrade.length });
+    }
+
+    await fetchSubmissions();
+    setGradingAll(false);
+    setGradeAllProgress(null);
+  }, [gradeSingleSub, fetchSubmissions]);
 
   useEffect(() => {
     const ungraded = submissions.filter(
@@ -749,6 +784,11 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const visibleSubmissions = selectedClass
     ? submissions.filter(s => selectedClass.members.includes(s.student_id))
     : submissions;
+
+  const visibleSubmissionsRef = useRef(visibleSubmissions);
+  visibleSubmissionsRef.current = visibleSubmissions;
+
+  const gradableCount = visibleSubmissions.filter(s => s.files && Object.keys(s.files).length > 0).length;
 
   if (loading) {
     return (
@@ -774,6 +814,37 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
         <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-200">
           {visibleSubmissions.filter(s => s.reviewed).length} reviewed
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          {gradingAll && gradeAllProgress && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <Loader2 size={12} className="animate-spin text-amber-500" />
+                <span>Grading <span className="font-semibold text-slate-700">{gradeAllProgress.done}</span> / {gradeAllProgress.total}</span>
+              </div>
+              <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                  style={{ width: `${(gradeAllProgress.done / gradeAllProgress.total) * 100}%` }}
+                />
+              </div>
+              <button
+                onClick={() => { gradeAllCancelRef.current = true; }}
+                className="text-[10px] text-slate-400 hover:text-red-500 transition-colors px-1.5 py-0.5 rounded border border-slate-200 hover:border-red-200"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {!gradingAll && gradableCount > 0 && (
+            <button
+              onClick={handleGradeAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+            >
+              <Zap size={12} />
+              AI Grade All ({gradableCount})
+            </button>
+          )}
+        </div>
       </div>
 
       {!filterUsername && classes.length > 0 && (

@@ -38,6 +38,29 @@ async function getOpenAIKey(): Promise<string | null> {
   return null;
 }
 
+async function callOpenAI(openaiKey: string, prompt: string, maxTokens = 500): Promise<string> {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openaiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content?.trim() || "";
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -66,41 +89,25 @@ Create a clear, detailed marking scheme for this task. Include:
 
 Format it clearly with sections and point values. Be specific and practical.`;
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 800,
-          temperature: 0.4,
-        }),
-      });
-
-      if (!response.ok) {
-        return jsonResponse({ error: `OpenAI error: ${response.status}` }, 500);
-      }
-
-      const data = await response.json();
-      const scheme = data.choices?.[0]?.message?.content?.trim() || "";
+      const scheme = await callOpenAI(openaiKey, prompt, 800);
       return jsonResponse({ marking_scheme: scheme });
     }
 
     if (action === "grade_submission") {
-      if (!markingScheme || !submissionFiles) {
-        return jsonResponse({ error: "Missing marking scheme or files" }, 400);
+      if (!submissionFiles) {
+        return jsonResponse({ error: "Missing submission files" }, 400);
       }
 
       const filesSummary = Object.entries(submissionFiles as Record<string, string>)
         .map(([name, content]) => `=== ${name} ===\n${content}`)
         .join("\n\n");
 
-      const prompt = `You are a teacher grading a student's programming submission.
+      let prompt: string;
 
-Task: ${taskTitle}
+      if (markingScheme) {
+        prompt = `You are an encouraging and supportive teacher grading a student's programming submission. Your feedback should be positive and motivating while being honest about areas for improvement.
+
+Task: ${taskTitle || "Programming submission"}
 ${taskDescription ? `Instructions: ${taskDescription}` : ""}
 
 Marking Scheme:
@@ -109,35 +116,38 @@ ${markingScheme}
 Student's Submission:
 ${filesSummary}
 
-Grade this submission according to the marking scheme. Provide:
-1. A score (e.g. "7/10" or "14/20") on the first line
-2. A brief explanation of what was done well
-3. What was missing or incorrect
-4. Constructive feedback for the student
+Grade this submission according to the marking scheme. Your response MUST follow this exact format:
 
-Keep your response concise (under 200 words). Start with the score on its own line.`;
+LINE 1: Score only (e.g. "7/10" or "14/20") — nothing else on this line
+LINE 2+: Encouraging feedback for the student that:
+- Starts by celebrating what they did well and achieved
+- Explains clearly why they earned the marks they did (justify each mark awarded)
+- Frames any missing elements as growth opportunities with kind, constructive language
+- Ends with a positive, motivating message
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 400,
-          temperature: 0.3,
-        }),
-      });
+Keep the feedback under 180 words. Be warm, specific, and encouraging.`;
+      } else {
+        prompt = `You are an encouraging and supportive teacher reviewing a student's programming work. Your feedback should be positive and motivating.
 
-      if (!response.ok) {
-        return jsonResponse({ error: `OpenAI error: ${response.status}` }, 500);
+${taskTitle ? `Task/Context: ${taskTitle}` : "This is a general programming submission."}
+
+Student's Submission:
+${filesSummary}
+
+Review this submission and provide a general assessment. Your response MUST follow this exact format:
+
+LINE 1: A simple overall score out of 10 (e.g. "8/10") — nothing else on this line
+LINE 2+: Encouraging feedback for the student that:
+- Starts by celebrating what they did well and achieved
+- Points out specific things in their code that are impressive or well-done
+- Suggests one or two friendly growth opportunities
+- Ends with a positive, motivating message
+
+Keep the feedback under 180 words. Be warm, specific, and encouraging.`;
       }
 
-      const data = await response.json();
-      const grade = data.choices?.[0]?.message?.content?.trim() || "";
-      return jsonResponse({ grade });
+      const result = await callOpenAI(openaiKey, prompt, 500);
+      return jsonResponse({ grade: result });
     }
 
     return jsonResponse({ error: "Unknown action" }, 400);
