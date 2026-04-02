@@ -24,6 +24,7 @@ interface ContextMenuState {
   y: number;
   targetPath: string;
   isFolder: boolean;
+  isBackground?: boolean;
 }
 
 interface FileManagerProps {
@@ -441,6 +442,35 @@ export default function FileManager({
     setCtxMenu({ x, y, targetPath: path, isFolder });
   }
 
+  function handleBackgroundCtxMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    const rect = panelRef.current?.getBoundingClientRect();
+    const x = rect ? e.clientX - rect.left : e.clientX;
+    const y = rect ? e.clientY - rect.top : e.clientY;
+    setCtxMenu({ x, y, targetPath: '', isFolder: false, isBackground: true });
+  }
+
+  function createFileWithExtension(ext: string) {
+    setCtxMenu(null);
+    const defaultNames: Record<string, string> = {
+      py: 'main.py',
+      ipynb: 'notebook.ipynb',
+      html: 'index.html',
+      js: 'script.js',
+      css: 'styles.css',
+    };
+    const allFilePaths = [...Object.keys(files), ...Object.keys(binaryFiles || {})];
+    let baseName = defaultNames[ext] || `new.${ext}`;
+    if (allFilePaths.includes(baseName)) {
+      let i = 2;
+      const namePart = baseName.replace(`.${ext}`, '');
+      while (allFilePaths.includes(`${namePart}${i}.${ext}`)) i++;
+      baseName = `${namePart}${i}.${ext}`;
+    }
+    onAddFile(baseName);
+    onSelectFile(baseName);
+  }
+
   function startCreateInFolder(folderPath: string, type: 'file' | 'folder') {
     setCtxMenu(null);
     setCreatePrefix(folderPath + '/');
@@ -688,6 +718,7 @@ export default function FileManager({
         onDragOver={handleRootDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleRootDrop}
+        onContextMenu={handleBackgroundCtxMenu}
       >
         {isRootDropTarget && draggedPath?.includes('/') && (
           <div className="px-2 py-1 text-[10px] text-sky-600 font-medium">
@@ -774,10 +805,51 @@ export default function FileManager({
 
       {ctxMenu && (
         <div
-          className="absolute z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-40 text-xs"
-          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          className="absolute z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-xs"
+          style={{ left: ctxMenu.x, top: ctxMenu.y, minWidth: '160px' }}
+          onClick={(e) => e.stopPropagation()}
         >
-          {ctxMenu.isFolder ? (
+          {ctxMenu.isBackground ? (
+            <>
+              <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">New File</div>
+              <div className="h-px bg-slate-100 mb-1" />
+              <button
+                onClick={() => createFileWithExtension('py')}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <FileCode size={12} className="text-sky-400" />
+                Python (.py)
+              </button>
+              <button
+                onClick={() => createFileWithExtension('ipynb')}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <BookOpen size={12} className="text-orange-500" />
+                Jupyter (.ipynb)
+              </button>
+              <button
+                onClick={() => createFileWithExtension('html')}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <FileText size={12} className="text-orange-400" />
+                HTML (.html)
+              </button>
+              <button
+                onClick={() => createFileWithExtension('js')}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <FileText size={12} className="text-yellow-400" />
+                JavaScript (.js)
+              </button>
+              <button
+                onClick={() => createFileWithExtension('css')}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <FileText size={12} className="text-blue-400" />
+                CSS (.css)
+              </button>
+            </>
+          ) : ctxMenu.isFolder ? (
             <>
               <button
                 onClick={() => startCreateInFolder(ctxMenu.targetPath, 'file')}
