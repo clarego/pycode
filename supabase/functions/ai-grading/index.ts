@@ -38,7 +38,7 @@ async function getOpenAIKey(): Promise<string | null> {
   return null;
 }
 
-async function callOpenAI(openaiKey: string, prompt: string, maxTokens = 500): Promise<string> {
+async function callOpenAI(openaiKey: string, messages: Array<{role: string; content: string}>, maxTokens = 500): Promise<string> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -47,9 +47,9 @@ async function callOpenAI(openaiKey: string, prompt: string, maxTokens = 500): P
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
+      messages,
       max_tokens: maxTokens,
-      temperature: 0.3,
+      temperature: 0.4,
     }),
   });
 
@@ -68,11 +68,79 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { action, taskTitle, taskDescription, markingScheme, submissionFiles } = body;
+    const { action, taskTitle, taskDescription, markingScheme, submissionFiles, adminDescription } = body;
 
     const openaiKey = await getOpenAIKey();
     if (!openaiKey) {
       return jsonResponse({ error: "OpenAI API key not configured" }, 400);
+    }
+
+    if (action === "generate_task_from_description") {
+      // Step 1: Generate the task title and instructions
+      const taskGenPrompt = `You are an experienced programming teacher. An admin has given you this brief description of a task they want to assign to students:
+
+Admin's description: "${adminDescription}"
+
+Your job is to:
+1. Create a clear, engaging task title
+2. Write detailed student-facing instructions that are friendly, clear, and well-structured
+
+The instructions should:
+- Explain the goal clearly
+- List specific requirements the student must meet (numbered)
+- Include any hints or guidance that would help students succeed
+- Be appropriate for a student learning to program
+
+Respond in this EXACT JSON format (no markdown, no extra text):
+{"title":"<task title>","instructions":"<full student instructions>"}`;
+
+      const taskJson = await callOpenAI(openaiKey, [{ role: "user", content: taskGenPrompt }], 1000);
+
+      let title = "";
+      let instructions = "";
+      try {
+        const parsed = JSON.parse(taskJson);
+        title = parsed.title || "";
+        instructions = parsed.instructions || "";
+      } catch {
+        return jsonResponse({ error: "Failed to parse AI task response" }, 500);
+      }
+
+      // Step 2: Decide what supporting files would help students
+      const fileDecisionPrompt = `You are an experienced programming teacher. You just created this task for students:
+
+Title: ${title}
+Instructions: ${instructions}
+
+Now think carefully: what supporting files or documents would genuinely help a student complete this task?
+
+Consider:
+- A reference guide / cheat sheet for syntax they'll need
+- A worked example of a DIFFERENT but similar problem (not solving their task)
+- A data file they need to work with (e.g. a .txt or .csv file with sample data)
+- A PDF guide explaining a concept relevant to the task
+- A starter template file with some scaffolding
+
+Only include files that are truly useful. Do NOT create a solution file. Do NOT create files that are redundant.
+
+Respond in this EXACT JSON format (no markdown, no extra text):
+{"files":[{"filename":"<filename with extension>","type":"<pdf|txt|py|csv|html>","purpose":"<one sentence: why this helps students>","content":"<the actual file content>"}]}
+
+If no files are needed, respond with: {"files":[]}
+
+Generate real, substantive content for each file — not placeholders.`;
+
+      const filesJson = await callOpenAI(openaiKey, [{ role: "user", content: fileDecisionPrompt }], 3000);
+
+      let files: Array<{filename: string; type: string; purpose: string; content: string}> = [];
+      try {
+        const parsed = JSON.parse(filesJson);
+        files = Array.isArray(parsed.files) ? parsed.files : [];
+      } catch {
+        files = [];
+      }
+
+      return jsonResponse({ title, instructions, files });
     }
 
     if (action === "generate_marking_scheme") {
@@ -89,7 +157,7 @@ Create a clear, detailed marking scheme for this task. Include:
 
 Format it clearly with sections and point values. Be specific and practical.`;
 
-      const scheme = await callOpenAI(openaiKey, prompt, 800);
+      const scheme = await callOpenAI(openaiKey, [{ role: "user", content: prompt }], 800);
       return jsonResponse({ marking_scheme: scheme });
     }
 
@@ -146,7 +214,7 @@ LINE 2+: Encouraging feedback for the student that:
 Keep the feedback under 180 words. Be warm, specific, and encouraging.`;
       }
 
-      const result = await callOpenAI(openaiKey, prompt, 500);
+      const result = await callOpenAI(openaiKey, [{ role: "user", content: prompt }], 500);
       return jsonResponse({ grade: result });
     }
 

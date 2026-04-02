@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil, BookOpen, Sparkles, ToggleLeft, ToggleRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil, BookOpen, Sparkles, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
+import AITaskCreatorModal from './AITaskCreatorModal';
 
 interface ClassOption {
   id: string;
@@ -659,6 +660,7 @@ export default function TaskManager() {
   const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
   const [editModalTask, setEditModalTask] = useState<Task | null>(null);
   const [markingSchemeTask, setMarkingSchemeTask] = useState<Task | null>(null);
+  const [showAiCreator, setShowAiCreator] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     const [{ data: taskData }, { data: assignData }] = await Promise.all([
@@ -732,6 +734,46 @@ export default function TaskManager() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation(); setDragging(false);
     if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+  };
+
+  const handleAiConfirm = async (
+    aiTitle: string,
+    aiInstructions: string,
+    aiFiles: { filename: string; type: string; purpose: string; content: string }[],
+    aiSelectedStudents: string[]
+  ) => {
+    const shareCode = generateShareCode();
+    const taskFiles: TaskFile[] = [];
+
+    for (const f of aiFiles) {
+      const blob = new Blob([f.content], { type: 'text/plain' });
+      const storagePath = `${shareCode}/${f.filename}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('task-files')
+        .upload(storagePath, blob, { contentType: 'text/plain', upsert: true });
+      if (uploadErr) throw uploadErr;
+      taskFiles.push({ name: f.filename, path: storagePath });
+    }
+
+    const { data: insertedTask, error: insertErr } = await supabase.from('tasks').insert({
+      share_code: shareCode,
+      title: aiTitle.trim(),
+      description: aiInstructions.trim(),
+      file_name: taskFiles.length === 1 ? taskFiles[0].name : null,
+      file_path: taskFiles.length === 1 ? taskFiles[0].path : null,
+      task_files: taskFiles,
+      created_by: user?.id,
+    }).select('id').maybeSingle();
+    if (insertErr) throw insertErr;
+
+    if (insertedTask && aiSelectedStudents.length > 0) {
+      const rows = aiSelectedStudents.map(sid => ({ task_id: insertedTask.id, student_id: sid }));
+      const { error: assignErr } = await supabase.from('task_assignments').insert(rows);
+      if (assignErr) throw assignErr;
+    }
+
+    setShowAiCreator(false);
+    await fetchTasks();
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -905,13 +947,22 @@ export default function TaskManager() {
           <h2 className="text-lg font-semibold text-slate-800">Tasks</h2>
           <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{tasks.length} tasks</span>
         </div>
-        <button
-          onClick={() => { setShowCreate(true); setError(''); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors"
-        >
-          <Plus size={13} />
-          Create Task
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAiCreator(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            <Wand2 size={13} />
+            Create with AI
+          </button>
+          <button
+            onClick={() => { setShowCreate(true); setError(''); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            <Plus size={13} />
+            Create Task
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -1237,6 +1288,15 @@ export default function TaskManager() {
           task={markingSchemeTask}
           onClose={() => setMarkingSchemeTask(null)}
           onSave={handleSaveMarkingScheme}
+        />
+      )}
+
+      {showAiCreator && (
+        <AITaskCreatorModal
+          students={students}
+          classes={classes}
+          onClose={() => setShowAiCreator(false)}
+          onConfirm={handleAiConfirm}
         />
       )}
     </div>
