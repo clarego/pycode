@@ -3,7 +3,7 @@ import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, 
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
-import AITaskCreatorModal from './AITaskCreatorModal';
+import AITaskCreatorModal, { TASK_TYPE_OPTIONS, type TaskType } from './AITaskCreatorModal';
 
 interface ClassOption {
   id: string;
@@ -31,6 +31,7 @@ interface Task {
   created_at: string;
   marking_scheme: string | null;
   auto_grade: boolean;
+  task_type: TaskType;
 }
 
 const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
@@ -646,6 +647,7 @@ export default function TaskManager() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [createTaskType, setCreateTaskType] = useState<TaskType>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -740,7 +742,8 @@ export default function TaskManager() {
     aiTitle: string,
     aiInstructions: string,
     aiFiles: { filename: string; type: string; purpose: string; content: string }[],
-    aiSelectedStudents: string[]
+    aiSelectedStudents: string[],
+    aiTaskType: TaskType
   ) => {
     const shareCode = generateShareCode();
     const taskFiles: TaskFile[] = [];
@@ -763,6 +766,7 @@ export default function TaskManager() {
       file_path: taskFiles.length === 1 ? taskFiles[0].path : null,
       task_files: taskFiles,
       created_by: user?.id,
+      task_type: aiTaskType,
     }).select('id').maybeSingle();
     if (insertErr) throw insertErr;
 
@@ -803,6 +807,7 @@ export default function TaskManager() {
         file_path: taskFiles.length === 1 ? taskFiles[0].path : null,
         task_files: taskFiles,
         created_by: user?.id,
+        task_type: createTaskType,
       }).select('id').maybeSingle();
       if (insertErr) throw insertErr;
 
@@ -819,6 +824,7 @@ export default function TaskManager() {
       setTitle('');
       setDescription('');
       setFiles([]);
+      setCreateTaskType(null);
       setSelectedStudents(new Set());
       await fetchTasks();
     } catch (err: unknown) {
@@ -978,6 +984,26 @@ export default function TaskManager() {
             </button>
           </div>
           <form onSubmit={handleCreate} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Task Type</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {TASK_TYPE_OPTIONS.map(opt => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setCreateTaskType(opt.value)}
+                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border-2 text-left transition-all ${
+                      createTaskType === opt.value
+                        ? `${opt.bg} ${opt.border} ${opt.color}`
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-sm leading-none">{opt.icon}</span>
+                    <span className="text-[11px] font-medium truncate">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Title</label>
               <input
@@ -1173,6 +1199,15 @@ export default function TaskManager() {
                     <p className="text-xs text-slate-500 line-clamp-2 mb-2">{task.description}</p>
                   )}
                   <div className="flex items-center gap-3 flex-wrap">
+                    {task.task_type && (() => {
+                      const opt = TASK_TYPE_OPTIONS.find(o => o.value === task.task_type);
+                      if (!opt) return null;
+                      return (
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${opt.bg} ${opt.border} ${opt.color}`}>
+                          {opt.icon} {opt.label}
+                        </span>
+                      );
+                    })()}
                     {fileCount > 0 && (
                       <span className="inline-flex items-center gap-1 text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded" title={fileNames.join(', ')}>
                         <FileText size={10} />

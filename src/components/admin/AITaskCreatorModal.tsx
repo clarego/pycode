@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import {
   X, Sparkles, Loader2, Check, ChevronRight, ChevronLeft,
-  FileText, Users, BookOpen, Pencil, Eye, ArrowRight, Wand2, Trash2
+  FileText, Users, BookOpen, Pencil, Eye, ArrowRight, Wand2
 } from 'lucide-react';
 
 const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
-interface GeneratedFile {
+export type TaskType = 'python' | 'jupyter' | 'html' | 'javascript' | 'css' | null;
+
+export interface GeneratedFile {
   filename: string;
   type: string;
   purpose: string;
@@ -28,10 +30,27 @@ interface AITaskCreatorModalProps {
   students: StudentUser[];
   classes: ClassOption[];
   onClose: () => void;
-  onConfirm: (title: string, instructions: string, files: GeneratedFile[], selectedStudents: string[]) => Promise<void>;
+  onConfirm: (title: string, instructions: string, files: GeneratedFile[], selectedStudents: string[], taskType: TaskType) => Promise<void>;
 }
 
 type Step = 'describe' | 'generating' | 'preview' | 'assign' | 'saving';
+
+export const TASK_TYPE_OPTIONS: {
+  value: TaskType;
+  label: string;
+  icon: string;
+  color: string;
+  bg: string;
+  border: string;
+  desc: string;
+}[] = [
+  { value: null,         label: 'General',    icon: '📋', color: 'text-slate-600',   bg: 'bg-slate-50',   border: 'border-slate-200',  desc: 'Any language' },
+  { value: 'python',     label: 'Python',     icon: '🐍', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', desc: '.py files' },
+  { value: 'jupyter',    label: 'Jupyter',    icon: '📓', color: 'text-orange-700',  bg: 'bg-orange-50',  border: 'border-orange-200',  desc: '.ipynb notebooks' },
+  { value: 'html',       label: 'HTML',       icon: '🌐', color: 'text-sky-700',     bg: 'bg-sky-50',     border: 'border-sky-200',     desc: '.html files' },
+  { value: 'javascript', label: 'JavaScript', icon: '⚡', color: 'text-yellow-700',  bg: 'bg-yellow-50',  border: 'border-yellow-200',  desc: '.js files' },
+  { value: 'css',        label: 'CSS',        icon: '🎨', color: 'text-pink-700',    bg: 'bg-pink-50',    border: 'border-pink-200',    desc: '.css files' },
+];
 
 async function callAiGrading(body: Record<string, unknown>) {
   const res = await fetch(`${FUNCTIONS_URL}/ai-grading`, {
@@ -44,9 +63,41 @@ async function callAiGrading(body: Record<string, unknown>) {
   return data;
 }
 
+function getFileIcon(type: string): string {
+  const t = type.toLowerCase();
+  if (t === 'pdf') return '📄';
+  if (t === 'py') return '🐍';
+  if (t === 'ipynb') return '📓';
+  if (t === 'csv') return '📊';
+  if (t === 'html') return '🌐';
+  if (t === 'js') return '⚡';
+  if (t === 'css') return '🎨';
+  if (t === 'json') return '🗂️';
+  return '📝';
+}
+
+const PLACEHOLDERS: Record<string, string> = {
+  python:     'e.g. Write a Python program that reads a list of numbers and calculates the mean, median, and mode. Handle edge cases like empty lists.',
+  jupyter:    'e.g. Analyse a dataset of student grades using pandas — create visualisations and write markdown explanations of findings.',
+  html:       'e.g. Build a personal portfolio webpage with a header, about section, skills list, and contact form.',
+  javascript: 'e.g. Create an interactive quiz app that tracks score, shows feedback after each question, and displays a final result.',
+  css:        'e.g. Style a provided HTML page: typography, colour palette, responsive layout, and hover effects.',
+  general:    'e.g. Write a Python program that reads a list of numbers from the user and calculates the mean, median, and mode. Students should handle edge cases like empty lists.',
+};
+
+const FILE_HINTS: Record<string, string> = {
+  jupyter:    'A starter .ipynb notebook with cells and markdown prompts',
+  html:       'An HTML starter file and a CSS reference sheet',
+  javascript: 'A starter .js file and relevant reference examples',
+  css:        'A pre-built HTML file to style and a CSS cheat sheet',
+  python:     'Supporting .py files, data files or reference guides',
+  general:    'Supporting files, reference guides or data files where helpful',
+};
+
 export default function AITaskCreatorModal({ students, classes, onClose, onConfirm }: AITaskCreatorModalProps) {
   const [step, setStep] = useState<Step>('describe');
   const [adminDescription, setAdminDescription] = useState('');
+  const [taskType, setTaskType] = useState<TaskType>(null);
   const [error, setError] = useState('');
 
   const [generatedTitle, setGeneratedTitle] = useState('');
@@ -57,6 +108,9 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
   const [assignTab, setAssignTab] = useState<'students' | 'classes'>('students');
   const [previewFile, setPreviewFile] = useState<GeneratedFile | null>(null);
 
+  const typeKey = taskType ?? 'general';
+  const selectedTypeOption = TASK_TYPE_OPTIONS.find(o => o.value === taskType) ?? TASK_TYPE_OPTIONS[0];
+
   const handleGenerate = async () => {
     if (!adminDescription.trim()) return;
     setError('');
@@ -65,6 +119,7 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
       const result = await callAiGrading({
         action: 'generate_task_from_description',
         adminDescription: adminDescription.trim(),
+        taskType: typeKey,
       });
       setGeneratedTitle(result.title || '');
       setGeneratedInstructions(result.instructions || '');
@@ -113,7 +168,8 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
         generatedTitle,
         generatedInstructions,
         generatedFiles.filter(f => f.kept),
-        Array.from(selectedStudents)
+        Array.from(selectedStudents),
+        taskType
       );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to create task');
@@ -123,22 +179,15 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
 
   const keptFiles = generatedFiles.filter(f => f.kept);
 
-  const fileTypeIcon = (type: string) => {
-    const t = type.toLowerCase();
-    if (t === 'pdf') return '📄';
-    if (t === 'py') return '🐍';
-    if (t === 'csv') return '📊';
-    if (t === 'html') return '🌐';
-    return '📝';
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={step !== 'generating' && step !== 'saving' ? onClose : undefined} />
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={step !== 'generating' && step !== 'saving' ? onClose : undefined}
+      />
 
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
 
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-slate-50">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center">
@@ -147,7 +196,7 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Create Task with AI</h2>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                {step === 'describe' && 'Describe what you want students to do'}
+                {step === 'describe' && 'Choose a type and describe what you want students to do'}
                 {step === 'generating' && 'AI is thinking like a teacher...'}
                 {step === 'preview' && 'Review and edit the generated task'}
                 {step === 'assign' && 'Choose who to assign this task to'}
@@ -162,21 +211,16 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
           )}
         </div>
 
-        {/* Step indicator */}
         <div className="flex items-center gap-0 px-6 py-3 border-b border-slate-100 bg-white">
           {(['describe', 'preview', 'assign'] as const).map((s, i) => {
             const labels = ['Describe', 'Preview', 'Assign'];
             const stepOrder = ['describe', 'generating', 'preview', 'assign', 'saving'];
-            const currentIdx = stepOrder.indexOf(step);
-            const thisIdx = stepOrder.indexOf(s);
-            const isDone = currentIdx > thisIdx;
+            const isDone = stepOrder.indexOf(step) > stepOrder.indexOf(s);
             const isActive = s === step || (step === 'generating' && s === 'describe');
             return (
               <div key={s} className="flex items-center">
                 <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
-                  isDone ? 'text-emerald-700 bg-emerald-50' :
-                  isActive ? 'text-sky-700 bg-sky-50' :
-                  'text-slate-400'
+                  isDone ? 'text-emerald-700 bg-emerald-50' : isActive ? 'text-sky-700 bg-sky-50' : 'text-slate-400'
                 }`}>
                   {isDone ? <Check size={10} strokeWidth={3} /> : <span className="w-4 text-center">{i + 1}</span>}
                   {labels[i]}
@@ -187,41 +231,61 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
           })}
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* Step: Describe */}
           {step === 'describe' && (
             <div className="px-6 py-5 space-y-4">
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
-              )}
+              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Describe the task</label>
-                <p className="text-xs text-slate-400 mb-3">
-                  Tell the AI what you want students to do. Be as brief or detailed as you like — the AI will figure out the rest and generate appropriate support materials.
-                </p>
+                <label className="block text-xs font-medium text-slate-600 mb-2">Task Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {TASK_TYPE_OPTIONS.map(opt => (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      onClick={() => setTaskType(opt.value)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all ${
+                        taskType === opt.value
+                          ? `${opt.bg} ${opt.border} ${opt.color} shadow-sm`
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{opt.icon}</span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium truncate">{opt.label}</div>
+                        <div className="text-[9px] opacity-60 truncate">{opt.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Describe the task</label>
                 <textarea
                   value={adminDescription}
                   onChange={e => setAdminDescription(e.target.value)}
-                  placeholder="e.g. Write a Python program that reads a list of numbers from the user and calculates the mean, median, and mode. Students should handle edge cases like empty lists."
-                  rows={6}
+                  placeholder={PLACEHOLDERS[typeKey] ?? PLACEHOLDERS.general}
+                  rows={5}
                   autoFocus
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 resize-y leading-relaxed"
                 />
               </div>
-              <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                <p className="text-xs font-medium text-amber-800 mb-1">What AI will generate for you:</p>
-                <ul className="text-xs text-amber-700 space-y-1">
-                  <li className="flex items-start gap-1.5"><span className="mt-0.5">•</span> A clear task title and student-facing instructions</li>
-                  <li className="flex items-start gap-1.5"><span className="mt-0.5">•</span> Supporting files (reference guides, data files, starter templates) where appropriate</li>
-                  <li className="flex items-start gap-1.5"><span className="mt-0.5">•</span> You can review, edit, and remove any files before assigning</li>
+
+              <div className={`p-4 rounded-xl border ${selectedTypeOption.bg} ${selectedTypeOption.border}`}>
+                <p className={`text-xs font-medium mb-1 ${selectedTypeOption.color}`}>
+                  {selectedTypeOption.icon} {selectedTypeOption.label} task — AI will generate:
+                </p>
+                <ul className={`text-xs space-y-1 ${selectedTypeOption.color} opacity-80`}>
+                  <li className="flex items-start gap-1.5"><span className="mt-0.5">•</span> Clear task title and student-facing instructions</li>
+                  <li className="flex items-start gap-1.5"><span className="mt-0.5">•</span> {FILE_HINTS[typeKey] ?? FILE_HINTS.general}</li>
+                  <li className="flex items-start gap-1.5"><span className="mt-0.5">•</span> You can review, edit and remove any files before assigning</li>
                 </ul>
               </div>
             </div>
           )}
 
-          {/* Step: Generating */}
           {step === 'generating' && (
             <div className="flex flex-col items-center justify-center py-16 px-6 gap-5">
               <div className="relative">
@@ -239,9 +303,9 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
                 </p>
               </div>
               <div className="flex flex-col gap-2 w-full max-w-xs">
-                {['Writing task title and instructions', 'Deciding what support files students need', 'Generating file contents'].map((label, i) => (
+                {['Writing task title and instructions', 'Generating support files for students'].map((label, i) => (
                   <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 rounded-lg">
-                    <Loader2 size={11} className="text-sky-400 animate-spin shrink-0" style={{ animationDelay: `${i * 0.3}s` }} />
+                    <Loader2 size={11} className="text-sky-400 animate-spin shrink-0" style={{ animationDelay: `${i * 0.4}s` }} />
                     <span className="text-xs text-slate-500">{label}</span>
                   </div>
                 ))}
@@ -249,11 +313,15 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
             </div>
           )}
 
-          {/* Step: Preview */}
           {step === 'preview' && (
             <div className="px-6 py-5 space-y-5">
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+
+              {taskType && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${selectedTypeOption.bg} ${selectedTypeOption.border}`}>
+                  <span className="text-sm">{selectedTypeOption.icon}</span>
+                  <span className={`text-xs font-medium ${selectedTypeOption.color}`}>{selectedTypeOption.label} Task</span>
+                </div>
               )}
 
               <div>
@@ -283,80 +351,73 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-medium text-slate-600">
-                    Generated Attachments
-                    <span className="ml-1.5 text-[10px] text-slate-400 font-normal">
-                      ({keptFiles.length} of {generatedFiles.length} selected)
-                    </span>
-                  </label>
-                </div>
-                {generatedFiles.length === 0 ? (
-                  <div className="py-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    AI determined no supporting files are needed for this task.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {generatedFiles.map((file, idx) => (
-                      <div
-                        key={idx}
-                        className={`rounded-xl border p-3.5 transition-all ${
-                          file.kept ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100 opacity-50'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <button
-                            onClick={() => toggleFile(idx)}
-                            className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                              file.kept ? 'bg-sky-600 border-sky-600' : 'border-slate-300'
-                            }`}
-                          >
-                            {file.kept && <Check size={9} className="text-white" strokeWidth={3} />}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">{fileTypeIcon(file.type)}</span>
-                              <span className="text-xs font-medium text-slate-700 truncate">{file.filename}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded uppercase shrink-0">{file.type}</span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{file.purpose}</p>
+                <label className="text-xs font-medium text-slate-600">
+                  Generated Attachments
+                  <span className="ml-1.5 text-[10px] text-slate-400 font-normal">
+                    ({keptFiles.length} of {generatedFiles.length} selected)
+                  </span>
+                </label>
+                <div className="mt-2 space-y-2">
+                  {generatedFiles.length === 0 ? (
+                    <div className="py-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      AI determined no supporting files are needed for this task.
+                    </div>
+                  ) : generatedFiles.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className={`rounded-xl border p-3.5 transition-all ${file.kept ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100 opacity-50'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => toggleFile(idx)}
+                          className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${file.kept ? 'bg-sky-600 border-sky-600' : 'border-slate-300'}`}
+                        >
+                          {file.kept && <Check size={9} className="text-white" strokeWidth={3} />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{getFileIcon(file.type)}</span>
+                            <span className="text-xs font-medium text-slate-700 truncate">{file.filename}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded uppercase shrink-0">{file.type}</span>
                           </div>
-                          <button
-                            onClick={() => setPreviewFile(previewFile?.filename === file.filename ? null : file)}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors shrink-0 ${
-                              previewFile?.filename === file.filename
-                                ? 'bg-sky-100 text-sky-700'
-                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                            }`}
-                          >
-                            <Eye size={10} />
-                            Preview
-                          </button>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{file.purpose}</p>
                         </div>
-
-                        {previewFile?.filename === file.filename && (
-                          <div className="mt-3 ml-7">
-                            <pre className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed font-mono">
-                              {file.content}
-                            </pre>
-                          </div>
-                        )}
+                        <button
+                          onClick={() => setPreviewFile(previewFile?.filename === file.filename ? null : file)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors shrink-0 ${
+                            previewFile?.filename === file.filename ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          }`}
+                        >
+                          <Eye size={10} />
+                          Preview
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      {previewFile?.filename === file.filename && (
+                        <div className="mt-3 ml-7">
+                          <pre className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed font-mono">
+                            {file.content}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Step: Assign */}
           {step === 'assign' && (
             <div className="px-6 py-5 space-y-4">
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
-              )}
+              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2 mb-1.5">
+                  {taskType && (
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${selectedTypeOption.bg} ${selectedTypeOption.border} ${selectedTypeOption.color}`}>
+                      {selectedTypeOption.icon} {selectedTypeOption.label}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs font-semibold text-slate-700 mb-0.5">{generatedTitle}</p>
                 <p className="text-[11px] text-slate-400 line-clamp-2">{generatedInstructions}</p>
                 {keptFiles.length > 0 && (
@@ -372,17 +433,13 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
                 <div className="flex border border-slate-200 rounded-lg overflow-hidden mb-3">
                   <button
                     onClick={() => setAssignTab('students')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors ${
-                      assignTab === 'students' ? 'bg-sky-50 text-sky-600 border-b-2 border-sky-500' : 'text-slate-500 hover:bg-slate-50'
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors ${assignTab === 'students' ? 'bg-sky-50 text-sky-600 border-b-2 border-sky-500' : 'text-slate-500 hover:bg-slate-50'}`}
                   >
                     <Users size={12} /> Students
                   </button>
                   <button
                     onClick={() => setAssignTab('classes')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors ${
-                      assignTab === 'classes' ? 'bg-sky-50 text-sky-600 border-b-2 border-sky-500' : 'text-slate-500 hover:bg-slate-50'
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors ${assignTab === 'classes' ? 'bg-sky-50 text-sky-600 border-b-2 border-sky-500' : 'text-slate-500 hover:bg-slate-50'}`}
                   >
                     <BookOpen size={12} /> Classes
                   </button>
@@ -403,9 +460,7 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
                         {students.map(s => (
                           <label
                             key={s.username}
-                            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                              selectedStudents.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'
-                            }`}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${selectedStudents.has(s.username) ? 'bg-sky-50' : 'hover:bg-slate-50'}`}
                           >
                             <input
                               type="checkbox"
@@ -431,13 +486,9 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
                           <button
                             key={cls.id}
                             onClick={() => toggleClass(cls)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                              allIn ? 'bg-sky-50' : someIn ? 'bg-amber-50' : 'hover:bg-slate-50'
-                            }`}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${allIn ? 'bg-sky-50' : someIn ? 'bg-amber-50' : 'hover:bg-slate-50'}`}
                           >
-                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                              allIn ? 'bg-sky-600 border-sky-600' : someIn ? 'bg-amber-400 border-amber-400' : 'border-slate-300'
-                            }`}>
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${allIn ? 'bg-sky-600 border-sky-600' : someIn ? 'bg-amber-400 border-amber-400' : 'border-slate-300'}`}>
                               {(allIn || someIn) && <Check size={9} className="text-white" strokeWidth={3} />}
                             </div>
                             <div>
@@ -461,7 +512,6 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
             </div>
           )}
 
-          {/* Step: Saving */}
           {step === 'saving' && (
             <div className="flex flex-col items-center justify-center py-16 px-6 gap-4">
               <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center">
@@ -475,7 +525,6 @@ export default function AITaskCreatorModal({ students, classes, onClose, onConfi
           )}
         </div>
 
-        {/* Footer */}
         {step !== 'generating' && step !== 'saving' && (
           <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
             {step === 'describe' && (
