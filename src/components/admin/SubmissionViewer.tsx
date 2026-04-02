@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users, Sparkles, Pencil, Check } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users, Sparkles, Pencil, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
 import type { AnnotationState } from '../../lib/pdfAnnotations';
@@ -67,7 +67,6 @@ function FilesModal({ files, studentName, onClose }: { files: Record<string, str
             <X size={16} />
           </button>
         </div>
-
         {filenames.length > 1 && (
           <div className="flex border-b border-slate-200 bg-slate-50 px-2 overflow-x-auto">
             {filenames.map((name) => (
@@ -85,7 +84,6 @@ function FilesModal({ files, studentName, onClose }: { files: Record<string, str
             ))}
           </div>
         )}
-
         <div className="flex-1 overflow-auto p-0">
           {activeFile.endsWith('.ipynb') ? (
             <NotebookRenderer content={files[activeFile] || ''} />
@@ -106,7 +104,7 @@ function FeedbackModal({ submission, onClose, onSave }: {
   onSave: (id: string, feedback: string, reviewed: boolean, grade?: string, gradeOverridden?: boolean) => Promise<void>;
 }) {
   const [feedback, setFeedback] = useState(submission.feedback || '');
-  const [grade, setGrade] = useState(submission.grade || submission.ai_grade || '');
+  const [grade, setGrade] = useState(submission.grade || submission.ai_grade?.split('\n')[0] || '');
   const [editingGrade, setEditingGrade] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -115,8 +113,7 @@ function FeedbackModal({ submission, onClose, onSave }: {
 
   const handleSave = async (markReviewed: boolean) => {
     setSaving(true);
-    const gradeChanged = grade !== (submission.ai_grade || '') || grade !== (submission.grade || '');
-    const gradeOverridden = hasAiGrade && gradeChanged && grade !== submission.ai_grade;
+    const gradeOverridden = hasAiGrade && grade !== submission.ai_grade?.split('\n')[0];
     await onSave(submission.id, feedback, markReviewed, grade || undefined, gradeOverridden);
     setSaving(false);
     onClose();
@@ -360,7 +357,6 @@ function PdfAnnotationsModal({ submission, onClose }: {
             <X size={16} />
           </button>
         </div>
-
         <div className="flex-1 min-h-0">
           {loading ? (
             <div className="h-full flex items-center justify-center">
@@ -385,7 +381,6 @@ function PdfAnnotationsModal({ submission, onClose }: {
             />
           ) : null}
         </div>
-
         {active && !loading && !error && (
           <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 shrink-0">
             <span className="text-xs text-slate-400">
@@ -395,6 +390,237 @@ function PdfAnnotationsModal({ submission, onClose }: {
         )}
       </div>
     </div>
+  );
+}
+
+function SubmissionRow({ sub, classes, filterUsername, grading, toggling, onViewFiles, onFeedback, onPdf, onToggleReviewed, onAiGrade }: {
+  sub: Submission;
+  classes: ClassOption[];
+  filterUsername?: string;
+  grading: string | null;
+  toggling: string | null;
+  onViewFiles: (files: Record<string, string>, name: string) => void;
+  onFeedback: (sub: Submission) => void;
+  onPdf: (sub: Submission) => void;
+  onToggleReviewed: (sub: Submission) => void;
+  onAiGrade: (sub: Submission) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const fileCount = sub.files ? Object.keys(sub.files).length : 0;
+  const studentClasses = !filterUsername
+    ? classes.filter(c => c.members.includes(sub.student_id))
+    : [];
+
+  const displayGrade = sub.grade_overridden && sub.grade
+    ? sub.grade
+    : sub.ai_grade?.split('\n')[0] || null;
+  const isOverride = !!(sub.grade_overridden && sub.grade);
+
+  function hasPdfFiles(): boolean {
+    if (!sub.tasks) return false;
+    const allFiles = sub.tasks.task_files ?? [];
+    const single = sub.tasks.file_name ? [{ name: sub.tasks.file_name }] : [];
+    const files = allFiles.length > 0 ? allFiles : single;
+    return files.some(f => f.name.toLowerCase().endsWith('.pdf'));
+  }
+
+  const hasFeedbackOrGrade = !!(sub.feedback || sub.ai_grade || sub.grade);
+
+  return (
+    <>
+      <tr className={`hover:bg-slate-50 transition-colors ${expanded ? 'bg-slate-50' : ''}`}>
+        <td className="px-4 py-3 align-top">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-slate-800 whitespace-nowrap">{sub.student_id}</span>
+            {studentClasses.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {studentClasses.map(c => (
+                  <span key={c.id} className="inline-flex items-center gap-1 text-[10px] text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">
+                    <BookOpen size={8} />
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 align-top">
+          {sub.tasks ? (
+            <span className="text-sm text-slate-600">{sub.tasks.title}</span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+              <Code2 size={11} />
+              Playground
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-3 align-top whitespace-nowrap">
+          {fileCount > 0 ? (
+            <button
+              onClick={() => onViewFiles(sub.files!, sub.student_id)}
+              className="flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 hover:underline"
+            >
+              <FileCode size={12} />
+              {fileCount} file{fileCount !== 1 ? 's' : ''}
+            </button>
+          ) : (
+            <span className="text-xs text-slate-400">None</span>
+          )}
+        </td>
+        <td className="px-4 py-3 align-top text-xs text-slate-500 whitespace-nowrap">
+          {new Date(sub.submitted_at).toLocaleString()}
+        </td>
+        <td className="px-4 py-3 align-top whitespace-nowrap">
+          {displayGrade ? (
+            <span className={`inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${
+              isOverride
+                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                : 'bg-amber-50 text-amber-700 border border-amber-200'
+            }`} title={isOverride ? 'Admin override' : 'AI grade'}>
+              {isOverride ? <Pencil size={9} /> : <Sparkles size={9} />}
+              {displayGrade}
+            </span>
+          ) : (
+            <span className="text-xs text-slate-300">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3 align-top">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
+                sub.reviewed
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                {sub.reviewed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                {sub.reviewed ? 'Reviewed' : 'Pending'}
+              </span>
+              {sub.red_flags && sub.red_flags.length > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 cursor-help whitespace-nowrap"
+                  title={sub.red_flags.map(f => {
+                    const mins = Math.floor(f.timestamp_ms / 60000);
+                    const secs = Math.floor((f.timestamp_ms % 60000) / 1000);
+                    return `${f.type === 'paste' ? 'Paste' : 'Bulk insert'}: ${f.chars} chars in ${f.file} at ${mins}:${secs.toString().padStart(2, '0')}`;
+                  }).join('\n')}
+                >
+                  <AlertTriangle size={9} />
+                  {sub.red_flags.length} flag{sub.red_flags.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            {hasFeedbackOrGrade && (
+              <button
+                onClick={() => setExpanded(e => !e)}
+                className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition-colors w-fit"
+              >
+                {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                {expanded ? 'Hide' : 'Show'} details
+              </button>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 align-top">
+          <div className="flex items-center justify-end gap-1 flex-wrap">
+            {sub.tasks?.marking_scheme && sub.files && (
+              <button
+                onClick={() => onAiGrade(sub)}
+                disabled={grading === sub.id}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                title={sub.ai_grade ? 'Re-grade with AI' : 'Grade with AI'}
+              >
+                {grading === sub.id ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Sparkles size={12} />
+                )}
+                {grading === sub.id ? 'Grading...' : (sub.ai_grade ? 'Re-grade' : 'AI Grade')}
+              </button>
+            )}
+            {sub.session_share_id && (
+              <a
+                href={`/review/${sub.session_share_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 rounded-lg transition-colors whitespace-nowrap"
+                title="Watch coding session playback"
+              >
+                <Play size={12} />
+                Playback
+              </a>
+            )}
+            {hasPdfFiles() && (
+              <button
+                onClick={() => onPdf(sub)}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 rounded-lg transition-colors whitespace-nowrap"
+                title="View student PDF annotations"
+              >
+                <FileText size={12} />
+                PDF
+              </button>
+            )}
+            <button
+              onClick={() => onFeedback(sub)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 rounded-lg transition-colors whitespace-nowrap"
+              title="Add feedback"
+            >
+              <MessageSquare size={12} />
+              Feedback
+            </button>
+            <button
+              onClick={() => onToggleReviewed(sub)}
+              disabled={toggling === sub.id}
+              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors whitespace-nowrap ${
+                sub.reviewed
+                  ? 'text-amber-600 hover:bg-amber-50'
+                  : 'text-emerald-600 hover:bg-emerald-50'
+              }`}
+            >
+              {toggling === sub.id ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Eye size={12} />
+              )}
+              {sub.reviewed ? 'Unmark' : 'Mark Reviewed'}
+            </button>
+          </div>
+        </td>
+      </tr>
+      {expanded && hasFeedbackOrGrade && (
+        <tr className="bg-slate-50 border-t border-slate-100">
+          <td colSpan={7} className="px-4 pb-3 pt-0">
+            <div className="flex gap-3 flex-wrap">
+              {(sub.ai_grade || (sub.grade_overridden && sub.grade)) && (
+                <div className={`flex-1 min-w-[200px] p-3 rounded-lg border ${sub.grade_overridden && sub.grade ? 'bg-sky-50 border-sky-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    {sub.grade_overridden && sub.grade ? (
+                      <Pencil size={11} className="text-sky-600" />
+                    ) : (
+                      <Sparkles size={11} className="text-amber-500" />
+                    )}
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${sub.grade_overridden && sub.grade ? 'text-sky-700' : 'text-amber-700'}`}>
+                      {sub.grade_overridden && sub.grade ? 'Grade (Override)' : 'AI Grade'}
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed">
+                    {sub.grade_overridden && sub.grade ? sub.grade : sub.ai_grade}
+                  </p>
+                </div>
+              )}
+              {sub.feedback && (
+                <div className="flex-1 min-w-[200px] p-3 rounded-lg border bg-emerald-50 border-emerald-200">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <MessageSquare size={11} className="text-emerald-600" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Feedback</span>
+                  </div>
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{sub.feedback}</p>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -470,7 +696,7 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
     await fetchSubmissions();
   };
 
-  const handleAiGrade = async (sub: Submission) => {
+  const handleAiGrade = useCallback(async (sub: Submission) => {
     if (!sub.tasks?.marking_scheme || !sub.files) return;
     setGrading(sub.id);
     setGradeError(null);
@@ -481,16 +707,34 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
         markingScheme: sub.tasks.marking_scheme,
         submissionFiles: sub.files,
       });
+
+      const fullText: string = result.grade || '';
+      const lines = fullText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+      const gradeLine = lines[0] || '';
+      const feedbackLines = lines.slice(1).join('\n').trim();
+
+      const updatePayload: Record<string, unknown> = {
+        ai_grade: gradeLine,
+        ai_graded_at: new Date().toISOString(),
+      };
+
+      if (sub.tasks.auto_grade) {
+        updatePayload.reviewed = true;
+        if (feedbackLines && !sub.feedback) {
+          updatePayload.feedback = feedbackLines;
+        }
+      }
+
       await supabase
         .from('task_submissions')
-        .update({ ai_grade: result.grade, ai_graded_at: new Date().toISOString() })
+        .update(updatePayload)
         .eq('id', sub.id);
       await fetchSubmissions();
     } catch (e) {
       setGradeError(e instanceof Error ? e.message : 'Grading failed');
     }
     setGrading(null);
-  };
+  }, [fetchSubmissions]);
 
   useEffect(() => {
     const ungraded = submissions.filter(
@@ -499,15 +743,7 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
     for (const sub of ungraded) {
       handleAiGrade(sub);
     }
-  }, [submissions]);
-
-  function hasPdfFiles(sub: Submission): boolean {
-    if (!sub.tasks) return false;
-    const allFiles = sub.tasks.task_files ?? [];
-    const single = sub.tasks.file_name ? [{ name: sub.tasks.file_name }] : [];
-    const files = allFiles.length > 0 ? allFiles : single;
-    return files.some(f => f.name.toLowerCase().endsWith('.pdf'));
-  }
+  }, [submissions, handleAiGrade]);
 
   const selectedClass = classes.find(c => c.id === selectedClassId) ?? null;
   const visibleSubmissions = selectedClass
@@ -585,184 +821,38 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Student</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Source</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Files</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitted</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Grade</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {visibleSubmissions.map((sub) => {
-                const fileCount = sub.files ? Object.keys(sub.files).length : 0;
-                const studentClasses = !filterUsername
-                  ? classes.filter(c => c.members.includes(sub.student_id))
-                  : [];
-                return (
-                  <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium text-slate-800">{sub.student_id}</span>
-                        {studentClasses.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {studentClasses.map(c => (
-                              <span key={c.id} className="inline-flex items-center gap-1 text-[10px] text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded font-medium">
-                                <BookOpen size={8} />
-                                {c.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {sub.tasks ? (
-                        <span className="text-sm text-slate-600">{sub.tasks.title}</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                          <Code2 size={11} />
-                          Playground
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {fileCount > 0 ? (
-                        <button
-                          onClick={() => setViewingFiles({ files: sub.files!, studentName: sub.student_id })}
-                          className="flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 hover:underline"
-                        >
-                          <FileCode size={12} />
-                          {fileCount} file{fileCount !== 1 ? 's' : ''}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400">None</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {new Date(sub.submitted_at).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      {sub.grade_overridden && sub.grade ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200" title="Admin override">
-                          <Pencil size={9} />
-                          {sub.grade}
-                        </span>
-                      ) : sub.ai_grade ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="AI grade">
-                          <Sparkles size={9} />
-                          {sub.ai_grade.split('\n')[0]}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
-                            sub.reviewed
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            {sub.reviewed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                            {sub.reviewed ? 'Reviewed' : 'Pending'}
-                          </span>
-                          {sub.red_flags && sub.red_flags.length > 0 && (
-                            <span
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 cursor-help"
-                              title={sub.red_flags.map(f => {
-                                const mins = Math.floor(f.timestamp_ms / 60000);
-                                const secs = Math.floor((f.timestamp_ms % 60000) / 1000);
-                                return `${f.type === 'paste' ? 'Paste' : 'Bulk insert'}: ${f.chars} chars in ${f.file} at ${mins}:${secs.toString().padStart(2, '0')}`;
-                              }).join('\n')}
-                            >
-                              <AlertTriangle size={9} />
-                              {sub.red_flags.length} flag{sub.red_flags.length !== 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-                        {sub.feedback && (
-                          <span className="text-[10px] text-slate-400 truncate max-w-[120px]" title={sub.feedback}>
-                            {sub.feedback}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {sub.tasks?.marking_scheme && sub.files && (
-                          <button
-                            onClick={() => handleAiGrade(sub)}
-                            disabled={grading === sub.id}
-                            className="flex items-center gap-1 px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50"
-                            title={sub.ai_grade ? 'Re-grade with AI' : 'Grade with AI'}
-                          >
-                            {grading === sub.id ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <Sparkles size={12} />
-                            )}
-                            {grading === sub.id ? 'Grading...' : (sub.ai_grade ? 'Re-grade' : 'AI Grade')}
-                          </button>
-                        )}
-                        {sub.session_share_id && (
-                          <a
-                            href={`/review/${sub.session_share_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
-                            title="Watch coding session playback"
-                          >
-                            <Play size={12} />
-                            Playback
-                          </a>
-                        )}
-                        {hasPdfFiles(sub) && (
-                          <button
-                            onClick={() => setPdfSub(sub)}
-                            className="flex items-center gap-1 px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                            title="View student PDF annotations"
-                          >
-                            <FileText size={12} />
-                            PDF
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setFeedbackSub(sub)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
-                          title="Add feedback"
-                        >
-                          <MessageSquare size={12} />
-                          Feedback
-                        </button>
-                        <button
-                          onClick={() => toggleReviewed(sub)}
-                          disabled={toggling === sub.id}
-                          className={`flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors ${
-                            sub.reviewed
-                              ? 'text-amber-600 hover:bg-amber-50'
-                              : 'text-emerald-600 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {toggling === sub.id ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <Eye size={12} />
-                          )}
-                          {sub.reviewed ? 'Unmark' : 'Mark Reviewed'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Student</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Source</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Files</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Submitted</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Grade</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleSubmissions.map((sub) => (
+                  <SubmissionRow
+                    key={sub.id}
+                    sub={sub}
+                    classes={classes}
+                    filterUsername={filterUsername}
+                    grading={grading}
+                    toggling={toggling}
+                    onViewFiles={(files, name) => setViewingFiles({ files, studentName: name })}
+                    onFeedback={setFeedbackSub}
+                    onPdf={setPdfSub}
+                    onToggleReviewed={toggleReviewed}
+                    onAiGrade={handleAiGrade}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
