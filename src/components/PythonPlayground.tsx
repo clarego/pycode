@@ -107,6 +107,7 @@ export default function PythonPlayground({
   const [showShare, setShowShare] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [embedCode, setEmbedCode] = useState('');
+  const [savedShareCode, setSavedShareCode] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [showDesigner, setShowDesigner] = useState(false);
@@ -287,7 +288,7 @@ export default function PythonPlayground({
   );
 
   const handleShare = useCallback(async () => {
-    const result = await saveSnippet(files, '', effectiveBinaryFiles, activeFile);
+    const result = await saveSnippet(files, '', effectiveBinaryFiles, activeFile, profile?.username);
     if ('error' in result) {
       setToast({ message: 'Failed to share: ' + result.error, type: 'error' });
       return;
@@ -296,9 +297,10 @@ export default function PythonPlayground({
     const url = `${base}/code/${result.shortCode}`;
     const embed = `<iframe src="${base}/embed/${result.shortCode}" width="100%" height="500" frameborder="0" style="border:1px solid #e2e8f0;border-radius:8px;" allowfullscreen></iframe>`;
     setShareUrl(url);
+    setSavedShareCode(result.shortCode);
     setEmbedCode(embed);
     setShowShare(true);
-  }, [files]);
+  }, [files, profile]);
 
   const handleDownload = useCallback(() => {
     const content = files[activeFile] || '';
@@ -755,6 +757,9 @@ Keep it concise - no more than 6-8 sentences total.`,
     </div>
   );
 
+  const isActiveHtml = activeFile.endsWith('.html') || activeFile.endsWith('.htm');
+  const htmlPreviewContent = isActiveHtml ? (files[activeFile] || null) : null;
+
   const outputPanel = (
     <OutputPanel
       output={output}
@@ -764,6 +769,7 @@ Keep it concise - no more than 6-8 sentences total.`,
       pgFrame={pgFrame}
       turtleFrame={turtleFrame}
       flaskHtml={flaskHtml}
+      htmlPreview={htmlPreviewContent}
       inputRequest={inputRequest}
       messageBoxRequest={messageBoxRequest}
       dialogRequest={dialogRequest}
@@ -923,7 +929,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           />
         </div>
         {showShare && (
-          <ShareDialog shareUrl={shareUrl} embedCode={embedCode} onClose={() => setShowShare(false)} />
+          <ShareDialog shareUrl={shareUrl} embedCode={embedCode} onClose={() => setShowShare(false)} shareCode={savedShareCode ?? undefined} ownerUsername={profile?.username} />
         )}
         {toast && (
           <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
@@ -1171,6 +1177,8 @@ Keep it concise - no more than 6-8 sentences total.`,
           shareUrl={shareUrl}
           embedCode={embedCode}
           onClose={() => setShowShare(false)}
+          shareCode={savedShareCode ?? undefined}
+          ownerUsername={profile?.username}
         />
       )}
 

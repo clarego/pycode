@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil, BookOpen } from 'lucide-react';
+import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil, BookOpen, Sparkles, ToggleLeft, ToggleRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
@@ -28,6 +28,127 @@ interface Task {
   file_path: string | null;
   task_files: TaskFile[];
   created_at: string;
+  marking_scheme: string | null;
+  auto_grade: boolean;
+}
+
+const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
+async function callAiGrading(body: Record<string, unknown>) {
+  const res = await fetch(`${FUNCTIONS_URL}/ai-grading`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'AI request failed');
+  return data;
+}
+
+function MarkingSchemeModal({ task, onClose, onSave }: {
+  task: Task;
+  onClose: () => void;
+  onSave: (taskId: string, markingScheme: string, autoGrade: boolean) => Promise<void>;
+}) {
+  const [scheme, setScheme] = useState(task.marking_scheme || '');
+  const [autoGrade, setAutoGrade] = useState(task.auto_grade);
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setError('');
+    try {
+      const result = await callAiGrading({
+        action: 'generate_marking_scheme',
+        taskTitle: task.title,
+        taskDescription: task.description,
+      });
+      setScheme(result.marking_scheme || '');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to generate marking scheme');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave(task.id, scheme, autoGrade);
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center gap-2">
+            <Sparkles size={15} className="text-amber-500" />
+            <span className="text-sm font-semibold text-slate-700">Marking Scheme — {task.title}</span>
+          </div>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-700">Write or generate a marking scheme for this task.</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">This will be used to automatically grade student submissions.</p>
+            </div>
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-300 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+            >
+              {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              {generating ? 'Generating...' : 'Generate with AI'}
+            </button>
+          </div>
+
+          <textarea
+            value={scheme}
+            onChange={(e) => setScheme(e.target.value)}
+            placeholder="Write your marking scheme here, or click 'Generate with AI' to create one automatically..."
+            rows={14}
+            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 resize-y font-mono leading-relaxed"
+          />
+
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Auto-grade submissions with AI</p>
+              <p className="text-xs text-slate-400 mt-0.5">When enabled, AI will automatically grade each submission using this marking scheme. You can still override grades manually.</p>
+            </div>
+            <button
+              onClick={() => setAutoGrade(!autoGrade)}
+              className={`ml-4 shrink-0 transition-colors ${autoGrade ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              {autoGrade ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-slate-200">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Save Marking Scheme
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 interface StudentUser {
@@ -537,6 +658,7 @@ export default function TaskManager() {
   const [assignmentsMap, setAssignmentsMap] = useState<Record<string, string[]>>({});
   const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
   const [editModalTask, setEditModalTask] = useState<Task | null>(null);
+  const [markingSchemeTask, setMarkingSchemeTask] = useState<Task | null>(null);
 
   const fetchTasks = useCallback(async () => {
     const [{ data: taskData }, { data: assignData }] = await Promise.all([
@@ -741,6 +863,11 @@ export default function TaskManager() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to delete task');
     }
+  };
+
+  const handleSaveMarkingScheme = async (taskId: string, markingScheme: string, autoGrade: boolean) => {
+    await supabase.from('tasks').update({ marking_scheme: markingScheme || null, auto_grade: autoGrade }).eq('id', taskId);
+    await fetchTasks();
   };
 
   const copyLink = (shareCode: string) => {
@@ -1027,6 +1154,18 @@ export default function TaskManager() {
                 </div>
                 <div className="flex items-center gap-1.5 ml-3 shrink-0">
                   <button
+                    onClick={() => setMarkingSchemeTask(task)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all border ${
+                      task.marking_scheme
+                        ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                        : 'text-slate-500 border-slate-200 hover:bg-slate-50'
+                    }`}
+                    title={task.marking_scheme ? 'Edit marking scheme' : 'Add marking scheme'}
+                  >
+                    <Sparkles size={12} />
+                    {task.auto_grade ? 'AI Grading On' : 'Marking Scheme'}
+                  </button>
+                  <button
                     onClick={() => copyLink(task.share_code)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
                       copiedId === task.share_code
@@ -1090,6 +1229,14 @@ export default function TaskManager() {
           currentAssignments={assignmentsMap[editModalTask.id] || []}
           onClose={() => setEditModalTask(null)}
           onSave={handleUpdate}
+        />
+      )}
+
+      {markingSchemeTask && (
+        <MarkingSchemeModal
+          task={markingSchemeTask}
+          onClose={() => setMarkingSchemeTask(null)}
+          onSave={handleSaveMarkingScheme}
         />
       )}
     </div>

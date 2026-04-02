@@ -1,10 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users, Sparkles, Pencil, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
 import type { AnnotationState } from '../../lib/pdfAnnotations';
 import PdfAnnotator from '../pdf/PdfAnnotator';
 import NotebookRenderer from '../notebook/NotebookRenderer';
+
+const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
+async function callAiGrading(body: Record<string, unknown>) {
+  const res = await fetch(`${FUNCTIONS_URL}/ai-grading`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'AI grading failed');
+  return data;
+}
 
 interface ClassOption {
   id: string;
@@ -29,7 +42,11 @@ interface Submission {
   reviewed: boolean;
   feedback: string | null;
   red_flags: RedFlag[] | null;
-  tasks: { title: string; share_code: string; task_files: { name: string; path: string }[] | null; file_name: string | null; file_path: string | null } | null;
+  ai_grade: string | null;
+  ai_graded_at: string | null;
+  grade: string | null;
+  grade_overridden: boolean;
+  tasks: { title: string; share_code: string; task_files: { name: string; path: string }[] | null; file_name: string | null; file_path: string | null; marking_scheme: string | null; auto_grade: boolean } | null;
 }
 
 function FilesModal({ files, studentName, onClose }: { files: Record<string, string>; studentName: string; onClose: () => void }) {
@@ -86,14 +103,21 @@ function FilesModal({ files, studentName, onClose }: { files: Record<string, str
 function FeedbackModal({ submission, onClose, onSave }: {
   submission: Submission;
   onClose: () => void;
-  onSave: (id: string, feedback: string, reviewed: boolean) => Promise<void>;
+  onSave: (id: string, feedback: string, reviewed: boolean, grade?: string, gradeOverridden?: boolean) => Promise<void>;
 }) {
   const [feedback, setFeedback] = useState(submission.feedback || '');
+  const [grade, setGrade] = useState(submission.grade || submission.ai_grade || '');
+  const [editingGrade, setEditingGrade] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const hasAiGrade = !!submission.ai_grade;
+  const isOverridden = submission.grade_overridden;
 
   const handleSave = async (markReviewed: boolean) => {
     setSaving(true);
-    await onSave(submission.id, feedback, markReviewed);
+    const gradeChanged = grade !== (submission.ai_grade || '') || grade !== (submission.grade || '');
+    const gradeOverridden = hasAiGrade && gradeChanged && grade !== submission.ai_grade;
+    await onSave(submission.id, feedback, markReviewed, grade || undefined, gradeOverridden);
     setSaving(false);
     onClose();
   };
@@ -139,6 +163,59 @@ function FeedbackModal({ submission, onClose, onSave }: {
               </div>
             </div>
           )}
+
+          {(hasAiGrade || submission.grade) && (
+            <div className={`p-3 rounded-lg border ${isOverridden ? 'bg-sky-50 border-sky-200' : 'bg-amber-50 border-amber-200'}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={12} className={isOverridden ? 'text-sky-500' : 'text-amber-500'} />
+                  <span className="text-xs font-semibold text-slate-700">
+                    {isOverridden ? 'Grade (Admin Override)' : 'AI Grade'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setEditingGrade(!editingGrade)}
+                  className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-sky-600 transition-colors"
+                >
+                  <Pencil size={10} />
+                  Override
+                </button>
+              </div>
+              {editingGrade ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value)}
+                    placeholder="e.g. 8/10"
+                    className="flex-1 px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+                  />
+                  <button
+                    onClick={() => setEditingGrade(false)}
+                    className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs rounded-lg transition-colors"
+                  >
+                    <Check size={12} />
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm font-mono text-slate-800 whitespace-pre-line">{grade || submission.ai_grade}</p>
+              )}
+            </div>
+          )}
+
+          {!hasAiGrade && !submission.grade && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Grade (optional)</label>
+              <input
+                type="text"
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+                placeholder="e.g. 8/10 or A-"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">
               {submission.tasks?.title ? `Task: ${submission.tasks.title}` : 'Playground submission'}
@@ -146,7 +223,7 @@ function FeedbackModal({ submission, onClose, onSave }: {
             <textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="Enter feedback, comments, or a grade..."
+              placeholder="Enter feedback or comments..."
               rows={5}
               className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition-all resize-none"
             />
@@ -329,16 +406,18 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [grading, setGrading] = useState<string | null>(null);
   const [viewingFiles, setViewingFiles] = useState<{ files: Record<string, string>; studentName: string } | null>(null);
   const [feedbackSub, setFeedbackSub] = useState<Submission | null>(null);
   const [pdfSub, setPdfSub] = useState<Submission | null>(null);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [gradeError, setGradeError] = useState<string | null>(null);
 
   const fetchSubmissions = useCallback(async () => {
     let query = supabase
       .from('task_submissions')
-      .select('*, tasks(title, share_code, task_files, file_name, file_path)')
+      .select('*, tasks(title, share_code, task_files, file_name, file_path, marking_scheme, auto_grade)')
       .order('submitted_at', { ascending: false });
 
     if (filterUsername) {
@@ -378,13 +457,49 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
     setToggling(null);
   };
 
-  const handleSaveFeedback = async (id: string, feedback: string, reviewed: boolean) => {
+  const handleSaveFeedback = async (id: string, feedback: string, reviewed: boolean, grade?: string, gradeOverridden?: boolean) => {
+    const update: Record<string, unknown> = { feedback, reviewed };
+    if (grade !== undefined) {
+      update.grade = grade || null;
+      update.grade_overridden = gradeOverridden ?? false;
+    }
     await supabase
       .from('task_submissions')
-      .update({ feedback, reviewed })
+      .update(update)
       .eq('id', id);
     await fetchSubmissions();
   };
+
+  const handleAiGrade = async (sub: Submission) => {
+    if (!sub.tasks?.marking_scheme || !sub.files) return;
+    setGrading(sub.id);
+    setGradeError(null);
+    try {
+      const result = await callAiGrading({
+        action: 'grade_submission',
+        taskTitle: sub.tasks.title,
+        markingScheme: sub.tasks.marking_scheme,
+        submissionFiles: sub.files,
+      });
+      await supabase
+        .from('task_submissions')
+        .update({ ai_grade: result.grade, ai_graded_at: new Date().toISOString() })
+        .eq('id', sub.id);
+      await fetchSubmissions();
+    } catch (e) {
+      setGradeError(e instanceof Error ? e.message : 'Grading failed');
+    }
+    setGrading(null);
+  };
+
+  useEffect(() => {
+    const ungraded = submissions.filter(
+      s => s.tasks?.auto_grade && s.tasks?.marking_scheme && s.files && !s.ai_grade && !s.ai_graded_at
+    );
+    for (const sub of ungraded) {
+      handleAiGrade(sub);
+    }
+  }, [submissions]);
 
   function hasPdfFiles(sub: Submission): boolean {
     if (!sub.tasks) return false;
@@ -409,6 +524,13 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
 
   return (
     <div>
+      {gradeError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-xs text-red-700">
+          <AlertTriangle size={13} className="text-red-500 shrink-0" />
+          {gradeError}
+          <button onClick={() => setGradeError(null)} className="ml-auto text-red-400 hover:text-red-600"><X size={13} /></button>
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <FileCheck size={20} className="text-slate-600" />
         <h2 className="text-lg font-semibold text-slate-800">Submissions</h2>
@@ -470,6 +592,7 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Source</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Files</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitted</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Grade</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -524,6 +647,21 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                       {new Date(sub.submitted_at).toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
+                      {sub.grade_overridden && sub.grade ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200" title="Admin override">
+                          <Pencil size={9} />
+                          {sub.grade}
+                        </span>
+                      ) : sub.ai_grade ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="AI grade">
+                          <Sparkles size={9} />
+                          {sub.ai_grade.split('\n')[0]}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5">
                           <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
@@ -557,6 +695,21 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {sub.tasks?.marking_scheme && sub.files && (
+                          <button
+                            onClick={() => handleAiGrade(sub)}
+                            disabled={grading === sub.id}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50"
+                            title={sub.ai_grade ? 'Re-grade with AI' : 'Grade with AI'}
+                          >
+                            {grading === sub.id ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Sparkles size={12} />
+                            )}
+                            {grading === sub.id ? 'Grading...' : (sub.ai_grade ? 'Re-grade' : 'AI Grade')}
+                          </button>
+                        )}
                         {sub.session_share_id && (
                           <a
                             href={`/review/${sub.session_share_id}`}

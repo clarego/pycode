@@ -1,16 +1,41 @@
 import { useState } from 'react';
-import { X, Copy, Check, Code2, Link2, Users } from 'lucide-react';
+import { X, Copy, Check, Code2, Link2, Users, Trash2, EyeOff } from 'lucide-react';
+import { deleteSnippet, unshareSnippet } from '../lib/snippets';
 
 interface ShareDialogProps {
   shareUrl: string;
   embedCode: string;
   onClose: () => void;
+  shareCode?: string;
+  ownerUsername?: string;
 }
 
-export default function ShareDialog({ shareUrl, embedCode, onClose }: ShareDialogProps) {
+export default function ShareDialog({ shareUrl, embedCode, onClose, shareCode, ownerUsername }: ShareDialogProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedEmbed, setCopiedEmbed] = useState(false);
   const [copiedClass, setCopiedClass] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [unsharing, setUnsharing] = useState(false);
+  const [done, setDone] = useState<'deleted' | 'unshared' | null>(null);
+
+  const isOwner = !!(shareCode && ownerUsername);
+
+  async function handleDelete() {
+    if (!shareCode || !ownerUsername) return;
+    if (!confirm('Delete this shared link permanently? Anyone with the link will no longer be able to access it.')) return;
+    setDeleting(true);
+    await deleteSnippet(shareCode, ownerUsername);
+    setDeleting(false);
+    setDone('deleted');
+  }
+
+  async function handleUnshare() {
+    if (!shareCode || !ownerUsername) return;
+    setUnsharing(true);
+    await unshareSnippet(shareCode, ownerUsername);
+    setUnsharing(false);
+    setDone('unshared');
+  }
 
   async function copyToClipboard(text: string, setter: (v: boolean) => void) {
     try {
@@ -27,6 +52,42 @@ export default function ShareDialog({ shareUrl, embedCode, onClose }: ShareDialo
       setter(true);
       setTimeout(() => setter(false), 2000);
     }
+  }
+
+  if (done === 'deleted') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div className="p-8 text-center">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={20} className="text-red-600" />
+            </div>
+            <h2 className="text-base font-semibold text-slate-800 mb-2">Link deleted</h2>
+            <p className="text-sm text-slate-500 mb-6">This shared link has been permanently removed.</p>
+            <button onClick={onClose} className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors">Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (done === 'unshared') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div className="p-8 text-center">
+            <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <EyeOff size={20} className="text-amber-600" />
+            </div>
+            <h2 className="text-base font-semibold text-slate-800 mb-2">Link made private</h2>
+            <p className="text-sm text-slate-500 mb-6">This link is now private. The URL no longer works publicly, but your code is still saved.</p>
+            <button onClick={onClose} className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors">Close</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -114,6 +175,30 @@ export default function ShareDialog({ shareUrl, embedCode, onClose }: ShareDialo
               </button>
             </div>
           </div>
+
+          {isOwner && (
+            <div className="pt-2 border-t border-slate-100">
+              <p className="text-xs text-slate-500 mb-3">You own this link — manage its visibility:</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleUnshare}
+                  disabled={unsharing || deleting}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <EyeOff size={13} />
+                  {unsharing ? 'Unsharing...' : 'Make Private'}
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={unsharing || deleting}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                  {deleting ? 'Deleting...' : 'Delete Link'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

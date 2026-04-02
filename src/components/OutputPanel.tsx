@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Terminal, Image, Monitor, Gamepad2, Pen, Globe, HelpCircle, Loader2, X } from 'lucide-react';
+import { Terminal, Image, Monitor, Gamepad2, Pen, Globe, HelpCircle, Loader2, X, Code2 } from 'lucide-react';
 import type { OutputLine, PlotData, TkWidgetNode, PygameFrame, InputRequest, MessageBoxRequest, DialogRequest } from '../hooks/usePyodide';
 import type { TurtleFrame } from './TurtleRenderer';
 import TkinterWindow from './tkinter/TkinterWindow';
@@ -16,6 +16,7 @@ interface OutputPanelProps {
   pgFrame: PygameFrame | null;
   turtleFrame: TurtleFrame | null;
   flaskHtml: string | null;
+  htmlPreview?: string | null;
   inputRequest: InputRequest | null;
   messageBoxRequest: MessageBoxRequest | null;
   dialogRequest: DialogRequest | null;
@@ -28,9 +29,9 @@ interface OutputPanelProps {
   userCode?: string;
 }
 
-type Tab = 'console' | 'gui' | 'pygame' | 'turtle' | 'web';
+type Tab = 'console' | 'gui' | 'pygame' | 'turtle' | 'web' | 'html';
 
-export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame, turtleFrame, flaskHtml, inputRequest, messageBoxRequest, dialogRequest, onSubmitInput, onTkEvent, onPgEvent, onMessageBoxResponse, onDialogResponse, onExplainError, userCode }: OutputPanelProps) {
+export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame, turtleFrame, flaskHtml, htmlPreview, inputRequest, messageBoxRequest, dialogRequest, onSubmitInput, onTkEvent, onPgEvent, onMessageBoxResponse, onDialogResponse, onExplainError, userCode }: OutputPanelProps) {
   const consoleRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<Tab>('console');
@@ -78,10 +79,16 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
   }, [flaskHtml, inputRequest]);
 
   useEffect(() => {
-    if (!tkTree && !pgFrame && !turtleFrame && !flaskHtml) {
+    if (htmlPreview != null) {
+      setActiveTab('html');
+    }
+  }, [htmlPreview]);
+
+  useEffect(() => {
+    if (!tkTree && !pgFrame && !turtleFrame && !flaskHtml && htmlPreview == null) {
       setActiveTab('console');
     }
-  }, [tkTree, pgFrame, turtleFrame, flaskHtml]);
+  }, [tkTree, pgFrame, turtleFrame, flaskHtml, htmlPreview]);
 
   useEffect(() => {
     setExplanation(null);
@@ -115,12 +122,13 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
   const hasPygame = pgFrame !== null;
   const hasTurtle = turtleFrame !== null;
   const hasWeb = flaskHtml !== null;
+  const hasHtml = htmlPreview != null;
 
   return (
     <div className="h-full flex flex-col bg-[#1a1d23] text-slate-300 overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 bg-[#15171c] border-b border-slate-700/50">
         <div className="flex items-center gap-1">
-          {(hasGui || hasPygame || hasTurtle || hasWeb) ? (
+          {(hasGui || hasPygame || hasTurtle || hasWeb || hasHtml) ? (
             <>
               <button
                 onClick={() => setActiveTab('console')}
@@ -191,6 +199,19 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
                 >
                   <Globe size={12} />
                   Web Preview
+                </button>
+              )}
+              {hasHtml && (
+                <button
+                  onClick={() => setActiveTab('html')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    activeTab === 'html'
+                      ? 'bg-slate-700/60 text-slate-200'
+                      : 'text-slate-500 hover:text-slate-400'
+                  }`}
+                >
+                  <Code2 size={12} />
+                  HTML Preview
                 </button>
               )}
             </>
@@ -383,6 +404,17 @@ export default function OutputPanel({ output, plots, isRunning, tkTree, pgFrame,
             srcDoc={flaskHtml!}
             title="Flask Web Preview"
             sandbox="allow-scripts"
+            className="w-full h-full border-0"
+          />
+        </div>
+      )}
+
+      {activeTab === 'html' && hasHtml && (
+        <div className="flex-1 overflow-hidden bg-white">
+          <iframe
+            srcDoc={htmlPreview!}
+            title="HTML Preview"
+            sandbox="allow-scripts allow-same-origin"
             className="w-full h-full border-0"
           />
         </div>
