@@ -4,6 +4,7 @@ export interface CodeSnippet {
   id: string;
   share_id: string;
   title: string;
+  description: string;
   files: Record<string, string>;
   binary_files: Record<string, string>;
   active_file: string | null;
@@ -127,4 +128,40 @@ export async function getMySnippets(
 
   if (error || !data) return [];
   return data as CodeSnippet[];
+}
+
+export async function getAllSnippets(): Promise<CodeSnippet[]> {
+  const { data, error } = await supabase
+    .from('code_snippets')
+    .select('*')
+    .not('created_by', 'is', null)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+  return data as CodeSnippet[];
+}
+
+export async function adminUpdateSnippet(
+  shareId: string,
+  updates: { description?: string; is_public?: boolean }
+): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('code_snippets')
+    .update(updates)
+    .eq('share_id', shareId);
+
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function adminDeleteSnippet(
+  shareId: string
+): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('code_snippets')
+    .delete()
+    .eq('share_id', shareId);
+
+  if (error) return { error: error.message };
+  return {};
 }

@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Users, ClipboardList, FileCheck, LogOut, Code2, GraduationCap, X, BookOpen } from 'lucide-react';
+import { Users, ClipboardList, FileCheck, LogOut, Code2, GraduationCap, X, BookOpen, Link2 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import UserManagement from './UserManagement';
 import TaskManager from './TaskManager';
 import SubmissionViewer from './SubmissionViewer';
 import ModuleProgressViewer from './ModuleProgressViewer';
 import ClassManager from './ClassManager';
+import SharedLinksManager from './SharedLinksManager';
 
-type Tab = 'users' | 'classes' | 'tasks' | 'submissions' | 'progress';
+type Tab = 'users' | 'classes' | 'tasks' | 'submissions' | 'progress' | 'links';
 type UserDetailTab = 'progress' | 'submissions';
 
 const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
@@ -16,6 +17,7 @@ const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'tasks', label: 'Tasks', icon: ClipboardList },
   { id: 'submissions', label: 'Submissions', icon: FileCheck },
   { id: 'progress', label: 'Module Progress', icon: GraduationCap },
+  { id: 'links', label: 'Shared Links', icon: Link2 },
 ];
 
 export default function AdminDashboard() {
@@ -110,6 +112,7 @@ export default function AdminDashboard() {
             {activeTab === 'classes' && <ClassManager />}
             {activeTab === 'tasks' && <TaskManager />}
             {activeTab === 'submissions' && <SubmissionViewer />}
+            {activeTab === 'links' && <SharedLinksManager />}
             {activeTab === 'progress' && (
               selectedUser ? (
                 <div>
