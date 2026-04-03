@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Copy, Check, Code2, Link2, Users, Trash2, EyeOff } from 'lucide-react';
+import { X, Copy, Check, Code2, Link2, Users, Trash2, EyeOff, Eye as EyeIcon } from 'lucide-react';
 import { deleteSnippet, unshareSnippet } from '../lib/snippets';
 
 interface ShareDialogProps {
@@ -17,6 +17,7 @@ export default function ShareDialog({ shareUrl, embedCode, onClose, shareCode, o
   const [deleting, setDeleting] = useState(false);
   const [unsharing, setUnsharing] = useState(false);
   const [done, setDone] = useState<'deleted' | 'unshared' | null>(null);
+  const [hideCode, setHideCode] = useState(false);
 
   const isOwner = !!(shareCode && ownerUsername);
 
@@ -150,20 +151,47 @@ export default function ShareDialog({ shareUrl, embedCode, onClose, shareCode, o
           </button>
 
           <div>
-            <label className="text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1.5">
-              <Code2 size={13} />
-              Embed Code
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
+                <Code2 size={13} />
+                Embed Code
+              </label>
+              <button
+                type="button"
+                onClick={() => setHideCode(h => !h)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                  hideCode
+                    ? 'bg-slate-800 border-slate-700 text-white'
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {hideCode ? <EyeOff size={11} /> : <EyeIcon size={11} />}
+                {hideCode ? 'Code hidden' : 'Hide code'}
+              </button>
+            </div>
+            {hideCode && (
+              <p className="text-[11px] text-slate-400 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-2 leading-relaxed">
+                The embed will show <strong className="text-slate-600">output only</strong> — viewers won't see the source code.
+              </p>
+            )}
             <div className="relative">
               <textarea
                 readOnly
-                value={embedCode}
+                value={(() => {
+                  if (!hideCode) return embedCode;
+                  return embedCode.replace(/(src="[^"]+)(")/, '$1?hideCode=1$2');
+                })()}
                 rows={3}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 font-mono resize-none"
                 onClick={(e) => (e.target as HTMLTextAreaElement).select()}
               />
               <button
-                onClick={() => copyToClipboard(embedCode, setCopiedEmbed)}
+                onClick={() => {
+                  const code = hideCode
+                    ? embedCode.replace(/(src="[^"]+)(")/, '$1?hideCode=1$2')
+                    : embedCode;
+                  copyToClipboard(code, setCopiedEmbed);
+                }}
                 className={`absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all ${
                   copiedEmbed
                     ? 'bg-emerald-100 text-emerald-700'

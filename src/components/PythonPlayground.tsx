@@ -46,6 +46,7 @@ interface PythonPlaygroundProps {
   initialBinaryFiles?: Record<string, string>;
   initialActiveFile?: string;
   isEmbed?: boolean;
+  hideCode?: boolean;
   shareCode?: string;
   embedded?: boolean;
   onFilesChange?: (files: Record<string, string>, activeFile: string) => void;
@@ -70,6 +71,7 @@ export default function PythonPlayground({
   initialBinaryFiles,
   initialActiveFile,
   isEmbed = false,
+  hideCode = false,
   shareCode,
   embedded = false,
   onFilesChange,
@@ -856,12 +858,16 @@ Keep it concise - no more than 6-8 sentences total.`,
           </div>
         </div>
         <div className="flex-1 min-h-0">
-          <ResizablePanel
-            left={embedEditorPanel}
-            right={outputPanel}
-            direction={isMobile ? 'vertical' : 'horizontal'}
-            defaultRatio={0.55}
-          />
+          {hideCode ? (
+            <div className="h-full">{outputPanel}</div>
+          ) : (
+            <ResizablePanel
+              left={embedEditorPanel}
+              right={outputPanel}
+              direction={isMobile ? 'vertical' : 'horizontal'}
+              defaultRatio={0.55}
+            />
+          )}
         </div>
       </div>
     );

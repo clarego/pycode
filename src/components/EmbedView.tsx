@@ -14,6 +14,8 @@ export default function EmbedView({ shortCode }: EmbedViewProps) {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const hideCode = new URLSearchParams(window.location.search).get('hideCode') === '1';
+
   useEffect(() => {
     async function load() {
       const snippet = await loadSnippet(shortCode);
@@ -58,6 +60,7 @@ export default function EmbedView({ shortCode }: EmbedViewProps) {
         initialBinaryFiles={binaryFiles}
         initialActiveFile={activeFile}
         isEmbed
+        hideCode={hideCode}
         shareCode={shortCode}
       />
     </div>
