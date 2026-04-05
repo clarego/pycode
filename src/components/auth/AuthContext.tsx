@@ -180,6 +180,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('auth_api_key', resolvedKey);
     setUser(authUser);
     setApiKey(resolvedKey);
+
+    (async () => {
+      try {
+        let ip = '';
+        let country = '';
+        let city = '';
+        try {
+          const geo = await fetch('https://ipapi.co/json/').then((r) => r.json());
+          ip = geo.ip || '';
+          country = geo.country_name || '';
+          city = geo.city || '';
+        } catch {
+          // geo lookup failed — still record with empty fields
+        }
+        await supabase.from('user_login_events').insert({
+          username,
+          ip_address: ip,
+          country,
+          city,
+          user_agent: navigator.userAgent,
+        });
+      } catch {
+        // non-critical — ignore
+      }
+    })();
   }, []);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {

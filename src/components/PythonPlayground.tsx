@@ -925,6 +925,7 @@ Keep it concise - no more than 6-8 sentences total.`,
             setShowOpenDialog(true);
           }}
           headerSlot={headerSlot}
+          isLoggedIn={!!profile}
         />
         <div className="flex-1 min-h-0">
           <ResizablePanel
@@ -1048,6 +1049,7 @@ Keep it concise - no more than 6-8 sentences total.`,
           setShowOpenDialog(true);
         }}
         onShowSubmissions={profile ? () => setShowMySubmissions(true) : undefined}
+        isLoggedIn={!!profile}
       />
 
       {profile && !embedded && (

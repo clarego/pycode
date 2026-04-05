@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, ClipboardList, FileCheck, LogOut, Code2, GraduationCap, X, BookOpen, Link2 } from 'lucide-react';
+import { Users, ClipboardList, FileCheck, LogOut, Code2, GraduationCap, X, BookOpen, Link2, Activity } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import UserManagement from './UserManagement';
 import TaskManager from './TaskManager';
@@ -7,9 +7,10 @@ import SubmissionViewer from './SubmissionViewer';
 import ModuleProgressViewer from './ModuleProgressViewer';
 import ClassManager from './ClassManager';
 import SharedLinksManager from './SharedLinksManager';
+import LoginActivityViewer from './LoginActivityViewer';
 
-type Tab = 'users' | 'classes' | 'tasks' | 'submissions' | 'progress' | 'links';
-type UserDetailTab = 'progress' | 'submissions';
+type Tab = 'users' | 'classes' | 'tasks' | 'submissions' | 'progress' | 'links' | 'activity';
+type UserDetailTab = 'progress' | 'submissions' | 'activity';
 
 const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'users', label: 'Users', icon: Users },
@@ -18,6 +19,7 @@ const tabs: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'submissions', label: 'Submissions', icon: FileCheck },
   { id: 'progress', label: 'Module Progress', icon: GraduationCap },
   { id: 'links', label: 'Shared Links', icon: Link2 },
+  { id: 'activity', label: 'Login Activity', icon: Activity },
 ];
 
 export default function AdminDashboard() {
@@ -113,6 +115,7 @@ export default function AdminDashboard() {
             {activeTab === 'tasks' && <TaskManager />}
             {activeTab === 'submissions' && <SubmissionViewer />}
             {activeTab === 'links' && <SharedLinksManager />}
+            {activeTab === 'activity' && <LoginActivityViewer />}
             {activeTab === 'progress' && (
               selectedUser ? (
                 <div>
@@ -153,6 +156,17 @@ export default function AdminDashboard() {
                       <FileCheck size={14} />
                       Submissions
                     </button>
+                    <button
+                      onClick={() => setUserDetailTab('activity')}
+                      className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        userDetailTab === 'activity'
+                          ? 'bg-white text-slate-800 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Activity size={14} />
+                      Login Activity
+                    </button>
                   </div>
 
                   {userDetailTab === 'progress' && (
@@ -164,6 +178,9 @@ export default function AdminDashboard() {
                   )}
                   {userDetailTab === 'submissions' && (
                     <SubmissionViewer filterUsername={selectedUser} />
+                  )}
+                  {userDetailTab === 'activity' && (
+                    <LoginActivityViewer filterUsername={selectedUser} />
                   )}
                 </div>
               ) : (

@@ -63,6 +63,7 @@ interface ToolbarProps {
   onOpenProject?: () => void;
   onShowSubmissions?: () => void;
   headerSlot?: React.ReactNode;
+  isLoggedIn?: boolean;
 }
 
 export default function Toolbar({
@@ -95,6 +96,7 @@ export default function Toolbar({
   onOpenProject,
   onShowSubmissions,
   headerSlot,
+  isLoggedIn = false,
 }: ToolbarProps) {
   const { darkMode, hackerMode, toggleDarkMode, toggleHackerMode } = useTheme();
   const [showExamples, setShowExamples] = useState(false);
@@ -293,10 +295,27 @@ export default function Toolbar({
             </>
           )}
 
-          <button onClick={onShare} className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors" title="Share">
-            <Share2 size={13} />
-            <span className="hidden md:inline">Share</span>
-          </button>
+          <div className="relative group">
+            <button
+              onClick={isLoggedIn ? onShare : undefined}
+              disabled={!isLoggedIn}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded transition-colors ${
+                isLoggedIn
+                  ? 'text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer'
+                  : 'text-slate-500 cursor-not-allowed opacity-50'
+              }`}
+              title={isLoggedIn ? 'Share' : ''}
+            >
+              <Share2 size={13} />
+              <span className="hidden md:inline">Share</span>
+            </button>
+            {!isLoggedIn && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-900 text-white text-[11px] rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg border border-slate-700">
+                Login to share your code
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+              </div>
+            )}
+          </div>
 
           {onUploadFile && (
             <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium rounded transition-colors cursor-pointer" title="Open file">
@@ -395,9 +414,15 @@ export default function Toolbar({
                 <button onClick={() => { onClear(); setShowMobileMore(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
                   <Trash2 size={13} /> Clear Output
                 </button>
-                <button onClick={() => { onShare(); setShowMobileMore(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
-                  <Share2 size={13} /> Share
-                </button>
+                {isLoggedIn ? (
+                  <button onClick={() => { onShare(); setShowMobileMore(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+                    <Share2 size={13} /> Share
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2.5 px-3 py-2 text-xs text-slate-500 cursor-not-allowed select-none">
+                    <Share2 size={13} /> Share <span className="ml-auto text-[10px] text-slate-600">(login required)</span>
+                  </div>
+                )}
                 <button onClick={() => { onDownload(); setShowMobileMore(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
                   <Download size={13} /> Download
                 </button>
