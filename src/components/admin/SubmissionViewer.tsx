@@ -122,8 +122,8 @@ function FeedbackModal({ submission, onClose, onSave }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
           <div className="flex items-center gap-2">
             <MessageSquare size={16} className="text-slate-600" />
             <span className="text-sm font-semibold text-slate-700">Feedback for {submission.student_id}</span>
@@ -132,28 +132,30 @@ function FeedbackModal({ submission, onClose, onSave }: {
             <X size={16} />
           </button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
           {submission.red_flags && submission.red_flags.length > 0 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center gap-1.5 mb-2">
-                <AlertTriangle size={13} className="text-red-500" />
-                <span className="text-xs font-semibold text-red-700">
-                  {submission.red_flags.length} Suspicious Event{submission.red_flags.length !== 1 ? 's' : ''} Detected
-                </span>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle size={13} className="text-red-500" />
+                  <span className="text-xs font-semibold text-red-700">
+                    {submission.red_flags.length} Suspicious Event{submission.red_flags.length !== 1 ? 's' : ''} Detected
+                  </span>
+                </div>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                 {submission.red_flags.map((f, i) => {
                   const mins = Math.floor(f.timestamp_ms / 60000);
                   const secs = Math.floor((f.timestamp_ms % 60000) / 1000);
                   return (
                     <div key={i} className="flex items-center gap-2 text-[11px] text-red-600">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${
                         f.type === 'paste' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                       }`}>
                         {f.type === 'paste' ? 'PASTE' : 'BULK'}
                       </span>
-                      <span>{f.chars} chars in <span className="font-mono">{f.file}</span></span>
-                      <span className="text-red-400">at {mins}:{secs.toString().padStart(2, '0')}</span>
+                      <span className="truncate">{f.chars} chars in <span className="font-mono">{f.file}</span></span>
+                      <span className="text-red-400 shrink-0">at {mins}:{secs.toString().padStart(2, '0')}</span>
                     </div>
                   );
                 })}
@@ -225,23 +227,23 @@ function FeedbackModal({ submission, onClose, onSave }: {
               className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition-all resize-none"
             />
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleSave(true)}
-              disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              Save & Mark Reviewed
-            </button>
-            <button
-              onClick={() => handleSave(false)}
-              disabled={saving}
-              className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium rounded-lg transition-colors"
-            >
-              Save Draft
-            </button>
-          </div>
+        </div>
+        <div className="shrink-0 flex gap-2 px-5 py-4 border-t border-slate-200 bg-slate-50">
+          <button
+            onClick={() => handleSave(true)}
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            Save & Mark Reviewed
+          </button>
+          <button
+            onClick={() => handleSave(false)}
+            disabled={saving}
+            className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium rounded-lg transition-colors"
+          >
+            Save Draft
+          </button>
         </div>
       </div>
     </div>
