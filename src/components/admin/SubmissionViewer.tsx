@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users, Sparkles, Pencil, Check, ChevronDown, ChevronUp, Zap } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Play, FileCheck, Eye, X, FileCode, MessageSquare, Code2, AlertTriangle, FileText, BookOpen, Users, Sparkles, Pencil, Check, ChevronDown, ChevronUp, Zap, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
 import type { AnnotationState } from '../../lib/pdfAnnotations';
@@ -663,6 +663,9 @@ function SubmissionRow({ sub, classes, filterUsername, grading, toggling, onView
   );
 }
 
+type SubSortField = 'student_id' | 'task_title' | 'file_count' | 'submitted_at' | 'grade' | 'status';
+type SubSortDir = 'asc' | 'desc';
+
 interface SubmissionViewerProps {
   filterUsername?: string;
 }
@@ -681,6 +684,8 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
+  const [subSortField, setSubSortField] = useState<SubSortField>('submitted_at');
+  const [subSortDir, setSubSortDir] = useState<SubSortDir>('desc');
 
   const fetchSubmissions = useCallback(async () => {
     let query = supabase
@@ -827,6 +832,43 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
   const visibleSubmissionsRef = useRef(visibleSubmissions);
   visibleSubmissionsRef.current = visibleSubmissions;
 
+  const toggleSubSort = (field: SubSortField) => {
+    if (subSortField === field) {
+      setSubSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSubSortField(field);
+      setSubSortDir(field === 'submitted_at' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedSubmissions = [...visibleSubmissions].sort((a, b) => {
+    let cmp = 0;
+    switch (subSortField) {
+      case 'student_id':
+        cmp = a.student_id.localeCompare(b.student_id);
+        break;
+      case 'task_title':
+        cmp = (a.tasks?.title || '').localeCompare(b.tasks?.title || '');
+        break;
+      case 'file_count':
+        cmp = (a.files ? Object.keys(a.files).length : 0) - (b.files ? Object.keys(b.files).length : 0);
+        break;
+      case 'submitted_at':
+        cmp = new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+        break;
+      case 'grade': {
+        const aGrade = (a.grade_overridden && a.grade ? a.grade : a.ai_grade?.split('\n')[0]) || '';
+        const bGrade = (b.grade_overridden && b.grade ? b.grade : b.ai_grade?.split('\n')[0]) || '';
+        cmp = aGrade.localeCompare(bGrade);
+        break;
+      }
+      case 'status':
+        cmp = (a.reviewed ? 1 : 0) - (b.reviewed ? 1 : 0);
+        break;
+    }
+    return subSortDir === 'asc' ? cmp : -cmp;
+  });
+
   const gradableCount = visibleSubmissions.filter(s => s.files && Object.keys(s.files).length > 0).length;
 
   if (loading) {
@@ -935,17 +977,33 @@ export default function SubmissionViewer({ filterUsername }: SubmissionViewerPro
             <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Student</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Source</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Files</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Submitted</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Grade</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  {([
+                    { field: 'student_id' as SubSortField, label: 'Student', align: 'left' },
+                    { field: 'task_title' as SubSortField, label: 'Source', align: 'left' },
+                    { field: 'file_count' as SubSortField, label: 'Files', align: 'left' },
+                    { field: 'submitted_at' as SubSortField, label: 'Submitted', align: 'left' },
+                    { field: 'grade' as SubSortField, label: 'Grade', align: 'left' },
+                    { field: 'status' as SubSortField, label: 'Status', align: 'left' },
+                  ]).map(({ field, label, align }) => (
+                    <th
+                      key={field}
+                      onClick={() => toggleSubSort(field)}
+                      className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:text-slate-700 hover:bg-slate-100 transition-colors select-none text-${align}`}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        {subSortField === field
+                          ? (subSortDir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)
+                          : <ArrowUpDown size={10} className="opacity-30" />
+                        }
+                      </span>
+                    </th>
+                  ))}
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visibleSubmissions.map((sub) => (
+                {sortedSubmissions.map((sub) => (
                   <SubmissionRow
                     key={sub.id}
                     sub={sub}

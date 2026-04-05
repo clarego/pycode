@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil, BookOpen, Sparkles, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
+import { Plus, Loader2, X, Check, ClipboardList, Link2, Copy, FileText, Trash2, Upload, Users, UserPlus, Pencil, BookOpen, Sparkles, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Wand2, Calendar, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthContext';
 import { generateShareCode } from '../../lib/api';
@@ -29,6 +29,7 @@ interface Task {
   file_path: string | null;
   task_files: TaskFile[];
   created_at: string;
+  deadline: string | null;
   marking_scheme: string | null;
   auto_grade: boolean;
   task_type: TaskType;
@@ -362,10 +363,11 @@ function EditTaskModal({ task, students, classes, currentAssignments, onClose, o
   classes: ClassOption[];
   currentAssignments: string[];
   onClose: () => void;
-  onSave: (taskId: string, updates: { title: string; description: string }, newFiles: File[], removedPaths: string[], selectedStudents: string[]) => Promise<void>;
+  onSave: (taskId: string, updates: { title: string; description: string; deadline: string | null }, newFiles: File[], removedPaths: string[], selectedStudents: string[]) => Promise<void>;
 }) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
+  const [deadline, setDeadline] = useState(task.deadline ? task.deadline.slice(0, 16) : '');
   const [existingFiles, setExistingFiles] = useState<TaskFile[]>(
     task.task_files?.length > 0 ? task.task_files : task.file_name ? [{ name: task.file_name, path: task.file_path! }] : []
   );
@@ -433,7 +435,7 @@ function EditTaskModal({ task, students, classes, currentAssignments, onClose, o
   const handleSave = async () => {
     if (!title.trim()) return;
     setSaving(true);
-    await onSave(task.id, { title: title.trim(), description: description.trim() }, newFiles, removedPaths, Array.from(selected));
+    await onSave(task.id, { title: title.trim(), description: description.trim(), deadline: deadline ? new Date(deadline).toISOString() : null }, newFiles, removedPaths, Array.from(selected));
     setSaving(false);
     onClose();
   };
@@ -471,6 +473,28 @@ function EditTaskModal({ task, students, classes, currentAssignments, onClose, o
               rows={4}
               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 resize-y"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1 flex items-center gap-1.5">
+              <Calendar size={11} />
+              Deadline (optional)
+            </label>
+            <input
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+            />
+            {deadline && (
+              <button
+                type="button"
+                onClick={() => setDeadline('')}
+                className="mt-1 text-[10px] text-slate-400 hover:text-red-500 transition-colors"
+              >
+                Clear deadline
+              </button>
+            )}
           </div>
 
           <div>
@@ -639,6 +663,9 @@ function EditTaskModal({ task, students, classes, currentAssignments, onClose, o
   );
 }
 
+type SortField = 'created_at' | 'title' | 'deadline';
+type SortDir = 'asc' | 'desc';
+
 export default function TaskManager() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -646,6 +673,7 @@ export default function TaskManager() {
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [createDeadline, setCreateDeadline] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [createTaskType, setCreateTaskType] = useState<TaskType>(null);
   const [saving, setSaving] = useState(false);
@@ -663,6 +691,8 @@ export default function TaskManager() {
   const [editModalTask, setEditModalTask] = useState<Task | null>(null);
   const [markingSchemeTask, setMarkingSchemeTask] = useState<Task | null>(null);
   const [showAiCreator, setShowAiCreator] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const fetchTasks = useCallback(async () => {
     const [{ data: taskData }, { data: assignData }] = await Promise.all([
@@ -808,6 +838,7 @@ export default function TaskManager() {
         task_files: taskFiles,
         created_by: user?.id,
         task_type: createTaskType,
+        deadline: createDeadline ? new Date(createDeadline).toISOString() : null,
       }).select('id').maybeSingle();
       if (insertErr) throw insertErr;
 
@@ -826,6 +857,7 @@ export default function TaskManager() {
       setFiles([]);
       setCreateTaskType(null);
       setSelectedStudents(new Set());
+      setCreateDeadline('');
       await fetchTasks();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create task');
@@ -854,7 +886,7 @@ export default function TaskManager() {
 
   const handleUpdate = async (
     taskId: string,
-    updates: { title: string; description: string },
+    updates: { title: string; description: string; deadline: string | null },
     newFiles: File[],
     removedPaths: string[],
     selectedStudents: string[]
@@ -883,6 +915,7 @@ export default function TaskManager() {
       await supabase.from('tasks').update({
         title: updates.title,
         description: updates.description,
+        deadline: updates.deadline,
         task_files: allFiles,
         file_name: allFiles.length === 1 ? allFiles[0].name : null,
         file_path: allFiles.length === 1 ? allFiles[0].path : null,
@@ -937,6 +970,29 @@ export default function TaskManager() {
     return [];
   };
 
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir(field === 'title' ? 'asc' : 'desc');
+    }
+  };
+
+  const sortedTasks = [...tasks].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'title') {
+      cmp = a.title.localeCompare(b.title);
+    } else if (sortField === 'deadline') {
+      const aTime = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+      const bTime = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+      cmp = aTime - bTime;
+    } else {
+      cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -947,7 +1003,7 @@ export default function TaskManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <ClipboardList size={20} className="text-slate-600" />
           <h2 className="text-lg font-semibold text-slate-800">Tasks</h2>
@@ -969,6 +1025,31 @@ export default function TaskManager() {
             Create Task
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-5">
+        <span className="text-[11px] text-slate-400 font-medium">Sort by:</span>
+        {(['title', 'deadline', 'created_at'] as SortField[]).map(field => {
+          const labels: Record<SortField, string> = { title: 'Name', deadline: 'Deadline', created_at: 'Date Created' };
+          const active = sortField === field;
+          return (
+            <button
+              key={field}
+              onClick={() => toggleSort(field)}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                active
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {labels[field]}
+              {active
+                ? (sortDir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)
+                : <ArrowUpDown size={10} className="opacity-40" />
+              }
+            </button>
+          );
+        })}
       </div>
 
       {error && (
@@ -1022,6 +1103,19 @@ export default function TaskManager() {
                 placeholder="Write task instructions for students..."
                 rows={4}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 resize-y"
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 mb-1">
+                <Calendar size={11} />
+                Deadline (optional)
+              </label>
+              <input
+                type="datetime-local"
+                value={createDeadline}
+                onChange={(e) => setCreateDeadline(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
               />
             </div>
 
@@ -1186,12 +1280,16 @@ export default function TaskManager() {
       )}
 
       <div className="space-y-3">
-        {tasks.map((task) => {
+        {sortedTasks.map((task) => {
           const fileNames = getFileNames(task);
           const fileCount = getFileCount(task);
           const assigned = assignmentsMap[task.id] || [];
+          const isOverdue = task.deadline && new Date(task.deadline) < new Date();
+          const deadlineDate = task.deadline ? new Date(task.deadline) : null;
           return (
-            <div key={task.id} className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
+            <div key={task.id} className={`bg-white border rounded-xl p-4 transition-colors ${
+              isOverdue ? 'border-red-300 hover:border-red-400' : 'border-slate-200 hover:border-slate-300'
+            }`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-slate-800 mb-1">{task.title}</h3>
@@ -1233,9 +1331,20 @@ export default function TaskManager() {
                         Assign
                       </button>
                     )}
-                    <span className="text-xs text-slate-400">
-                      {new Date(task.created_at).toLocaleDateString()}
-                    </span>
+                    {deadlineDate ? (
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded border ${
+                        isOverdue
+                          ? 'bg-red-50 text-red-600 border-red-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        <Calendar size={9} />
+                        {isOverdue ? 'Overdue: ' : 'Due: '}{deadlineDate.toLocaleDateString()} {deadlineDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">
+                        {new Date(task.created_at).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 ml-3 shrink-0">
@@ -1289,7 +1398,7 @@ export default function TaskManager() {
             </div>
           );
         })}
-        {tasks.length === 0 && (
+        {sortedTasks.length === 0 && (
           <div className="text-center py-16 text-sm text-slate-400">
             No tasks yet. Create your first task to get started.
           </div>
