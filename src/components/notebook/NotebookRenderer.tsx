@@ -397,9 +397,21 @@ export default function NotebookRenderer({ content, highlightNewContent }: Noteb
 
   if (parseError || !notebook) {
     return (
-      <pre className="text-xs font-mono leading-relaxed p-4 whitespace-pre-wrap break-words" style={{ backgroundColor: '#1e1e1e', color: '#d4d4d4' }}>
-        {content}
-      </pre>
+      <div className="font-mono text-[13px] leading-[1.6]" style={{ backgroundColor: '#1e1e1e', minHeight: '100%' }}>
+        {content.split('\n').map((line, i) => (
+          <div key={i} className="flex hover:bg-white/5">
+            <span
+              className="select-none text-right pr-4 pl-3 text-[12px] w-10 shrink-0 leading-[1.6]"
+              style={{ color: '#555' }}
+            >
+              {i + 1}
+            </span>
+            <pre className="flex-1 pr-4 whitespace-pre-wrap break-all" style={{ color: '#d4d4d4' }}>
+              {line || ' '}
+            </pre>
+          </div>
+        ))}
+      </div>
     );
   }
 

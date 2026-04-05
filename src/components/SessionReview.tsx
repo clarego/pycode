@@ -63,27 +63,41 @@ function DiffHighlightedCode({ code, prevCode, highlight }: { code: string; prev
   const diffed = diffLines(code, prevCode);
 
   return (
-    <div className="font-mono text-sm leading-6">
+    <div className="font-mono text-[13px] leading-[1.6]" style={{ backgroundColor: '#1e1e1e' }}>
       {diffed.map(({ line, status }, i) => {
-        let bg = 'border-l-2 border-transparent';
+        let bg = 'transparent';
+        let borderColor = 'transparent';
+        let textColor = '#d4d4d4';
+        let fontWeight = 400;
+
         if (status === 'new') {
-          bg = highlight
-            ? 'bg-emerald-100 border-l-4 border-emerald-500 animate-pulse-once'
-            : 'bg-emerald-50 border-l-2 border-emerald-400';
+          bg = highlight ? 'rgba(78,201,176,0.18)' : 'rgba(78,201,176,0.10)';
+          borderColor = '#4ec9b0';
+          textColor = highlight ? '#4ec9b0' : '#d4d4d4';
+          fontWeight = highlight ? 600 : 400;
         } else if (status === 'changed') {
-          bg = highlight
-            ? 'bg-amber-100 border-l-4 border-amber-500 animate-pulse-once'
-            : 'bg-amber-50 border-l-2 border-amber-400';
+          bg = highlight ? 'rgba(220,220,170,0.18)' : 'rgba(220,220,170,0.10)';
+          borderColor = '#dcdcaa';
+          textColor = highlight ? '#dcdcaa' : '#d4d4d4';
+          fontWeight = highlight ? 600 : 400;
         }
 
         return (
-          <div key={i} className={`flex ${bg} transition-colors duration-200`}>
-            <span className="select-none w-12 text-right pr-4 text-slate-400 text-xs leading-6 flex-shrink-0">
+          <div
+            key={i}
+            className="flex hover:bg-white/5 transition-colors duration-150"
+            style={{ backgroundColor: bg, borderLeft: `3px solid ${borderColor}` }}
+          >
+            <span
+              className="select-none text-right pr-4 pl-3 text-[12px] w-10 shrink-0 leading-[1.6]"
+              style={{ color: '#555' }}
+            >
               {i + 1}
             </span>
-            <pre className={`flex-1 whitespace-pre-wrap break-all ${
-              status !== 'same' ? 'text-slate-900 font-medium' : 'text-slate-800'
-            }`}>
+            <pre
+              className="flex-1 pr-4 whitespace-pre-wrap break-all"
+              style={{ color: textColor, fontWeight }}
+            >
               {line || ' '}
             </pre>
           </div>
@@ -803,24 +817,27 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
       )}
 
       <div className="flex-1 min-h-0 flex flex-col" ref={codeContainerRef}>
-        <div className={`flex items-center gap-1 px-4 py-1.5 border-b transition-colors ${
-          isAtFlagApex
-            ? (currentFlag?.event === 'paste' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200')
-            : 'bg-white border-slate-200'
-        }`}>
+        <div
+          className="flex items-center gap-1 px-4 py-1.5 border-b transition-colors"
+          style={{
+            backgroundColor: '#252526',
+            borderColor: isAtFlagApex ? (currentFlag?.event === 'paste' ? '#ef4444' : '#f59e0b') : '#3c3c3c',
+          }}
+        >
           {fileNames.map((name) => (
             <button
               key={name}
               onClick={() => setActiveTab(name)}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
-                displayFile === name
-                  ? 'bg-sky-50 text-sky-700 font-medium'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-              }`}
+              className="px-3 py-1 text-xs rounded transition-colors"
+              style={{
+                backgroundColor: displayFile === name ? '#1e1e1e' : 'transparent',
+                color: displayFile === name ? '#d4d4d4' : '#858585',
+                fontWeight: displayFile === name ? 500 : 400,
+              }}
             >
               {name}
               {snapshot.active_file === name && (
-                <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
+                <span className="ml-1.5 w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: '#4ec9b0' }} />
               )}
             </button>
           ))}
@@ -861,15 +878,11 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           )}
         </div>
 
-        <div className={`flex-1 min-h-0 overflow-auto transition-colors duration-300 ${
-          isAtFlagApex
-            ? (currentFlag?.event === 'paste' ? 'bg-red-50/30' : 'bg-amber-50/30')
-            : 'bg-white'
-        }`}>
+        <div className="flex-1 min-h-0 overflow-auto" style={{ backgroundColor: '#1e1e1e' }}>
           {displayFile.endsWith('.ipynb') ? (
             <NotebookRenderer content={currentCode} />
           ) : (
-            <div className="px-4 py-3">
+            <div className="py-2">
               <DiffHighlightedCode
                 code={currentCode}
                 prevCode={prevCode}
