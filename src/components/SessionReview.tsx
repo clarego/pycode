@@ -3,7 +3,7 @@ import { loadSession, type Snapshot } from '../lib/sessions';
 import {
   Play, Pause, SkipBack, SkipForward, Clock, FileCode, Eye, Loader2, User,
   AlertTriangle, Clipboard, ChevronDown, ChevronUp, Video, ZoomIn, ArrowRight,
-  Timer,
+  Timer, X,
 } from 'lucide-react';
 import NotebookRenderer from './notebook/NotebookRenderer';
 
@@ -245,6 +245,266 @@ function FlagEventPanel({
   );
 }
 
+function FlagPlaybackModal({
+  flag,
+  snapshots,
+  onClose,
+}: {
+  flag: FlaggedMoment;
+  snapshots: Snapshot[];
+  onClose: () => void;
+}) {
+  const start = Math.max(0, flag.index - PRE_FLAG_CONTEXT);
+  const end = Math.min(snapshots.length - 1, flag.index + POST_FLAG_CONTEXT);
+  const [frameIndex, setFrameIndex] = useState(start);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [speed, setSpeed] = useState(1);
+  const playRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopPlay = useCallback(() => {
+    setIsPlaying(false);
+    if (playRef.current) { clearTimeout(playRef.current); playRef.current = null; }
+  }, []);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    if (frameIndex >= end) { stopPlay(); return; }
+    const cur = snapshots[frameIndex];
+    const nxt = snapshots[frameIndex + 1];
+    const timeDiff = nxt.timestamp_ms - cur.timestamp_ms;
+    const delay = Math.max(60, Math.min(timeDiff / speed, 800));
+    playRef.current = setTimeout(() => setFrameIndex(i => i + 1), delay);
+    return () => { if (playRef.current) clearTimeout(playRef.current); };
+  }, [isPlaying, frameIndex, end, snapshots, speed, stopPlay]);
+
+  const snapshot = snapshots[frameIndex];
+  const prevSnapshot = frameIndex > 0 ? snapshots[frameIndex - 1] : null;
+  const files = snapshot.files as Record<string, string>;
+  const file = flag.file;
+  const code = files[file] || Object.values(files)[0] || '';
+  const prevFiles = prevSnapshot ? (prevSnapshot.files as Record<string, string>) : {};
+  const prevCode = prevFiles[file] || (prevSnapshot ? Object.values(prevSnapshot.files as Record<string, string>)[0] || '' : '');
+  const isAtFlag = frameIndex === flag.index;
+  const isPaste = flag.event === 'paste';
+  const totalFrames = end - start + 1;
+  const framePos = frameIndex - start;
+  const durationSec = Math.max(1, Math.round((flag.timestamp_ms - flag.prev_timestamp_ms) / 1000));
+  const isNb = file.endsWith('.ipynb');
+
+  const diffed = useMemo(() => diffLines(code, prevCode), [code, prevCode]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div
+        className="rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+        style={{
+          backgroundColor: '#0f0f0f',
+          border: `1px solid ${isAtFlag ? (isPaste ? '#ef4444' : '#f59e0b') : '#2a2a2a'}`,
+          maxWidth: 900,
+          maxHeight: '90vh',
+          transition: 'border-color 0.2s',
+        }}
+      >
+        <div className={`flex items-center justify-between px-5 py-3 shrink-0 ${
+          isAtFlag ? (isPaste ? 'bg-red-700' : 'bg-amber-600') : 'bg-[#1a1a1a]'
+        }`} style={{ transition: 'background 0.2s' }}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Video size={14} className="text-white/80" />
+            <span className="text-sm font-semibold text-white">
+              {isPaste ? 'Paste Event Replay' : 'Bulk Insert Replay'}
+            </span>
+            <span className="text-white/70 text-xs font-mono bg-black/30 px-2 py-0.5 rounded">
+              {formatTime(flag.timestamp_ms)}
+            </span>
+            <span className="text-white/80 text-xs bg-black/20 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+              <Timer size={10} />
+              +{flag.chars_added} chars in {durationSec}s
+              {durationSec <= 3 && flag.chars_added >= SUSPICIOUS_CHARS_THRESHOLD && (
+                <span className="ml-1 font-bold text-white">— highly suspicious</span>
+              )}
+            </span>
+            <span className="text-white/60 text-xs font-mono">{file}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors p-1 rounded"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {isAtFlag && (
+          <div className={`flex items-center gap-2 px-5 py-1.5 text-xs font-semibold shrink-0 ${
+            isPaste ? 'bg-red-600/20 text-red-300 border-b border-red-900/40' : 'bg-amber-600/20 text-amber-300 border-b border-amber-900/40'
+          }`}>
+            {isPaste ? <Clipboard size={11} /> : <AlertTriangle size={11} />}
+            {isPaste ? 'PASTE detected at this frame' : 'BULK INSERT detected at this frame'}
+            <span className="ml-auto font-normal opacity-70">Code changed highlighted below</span>
+          </div>
+        )}
+
+        <div className="flex-1 min-h-0 overflow-auto" style={{ backgroundColor: '#141414' }}>
+          {isNb ? (
+            <NotebookRenderer content={code} highlightNewContent={isAtFlag ? prevCode : undefined} />
+          ) : (
+            <div className="py-2">
+              {diffed.map(({ line, status }, i) => {
+                const shouldHighlight = isAtFlag && status !== 'same';
+                let bg = 'transparent';
+                let borderColor = 'transparent';
+                let textColor = '#d4d4d4';
+                let fontWeight = 400;
+                if (shouldHighlight && status === 'new') {
+                  bg = 'rgba(78,201,176,0.15)';
+                  borderColor = '#4ec9b0';
+                  textColor = '#4ec9b0';
+                  fontWeight = 600;
+                } else if (shouldHighlight && status === 'changed') {
+                  bg = 'rgba(220,220,170,0.15)';
+                  borderColor = '#dcdcaa';
+                  textColor = '#dcdcaa';
+                  fontWeight = 600;
+                }
+                return (
+                  <div
+                    key={i}
+                    className="flex"
+                    style={{
+                      backgroundColor: bg,
+                      borderLeft: `3px solid ${borderColor}`,
+                      transition: 'background-color 0.15s, border-color 0.15s',
+                    }}
+                  >
+                    <span
+                      className="select-none text-right pr-4 pl-3 text-[12px] w-10 shrink-0 leading-[1.6]"
+                      style={{ color: '#555' }}
+                    >
+                      {i + 1}
+                    </span>
+                    <pre
+                      className="flex-1 pr-4 whitespace-pre-wrap break-all font-mono text-[13px] leading-[1.6]"
+                      style={{ color: textColor, fontWeight }}
+                    >
+                      {line || ' '}
+                    </pre>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0 px-5 py-3 border-t" style={{ backgroundColor: '#1a1a1a', borderColor: '#2a2a2a' }}>
+          <div className="flex items-center gap-3 mb-2.5">
+            <button
+              onClick={() => { stopPlay(); setFrameIndex(start); }}
+              className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white/80 transition-colors"
+              title="Go to start"
+            >
+              <SkipBack size={14} />
+            </button>
+
+            <button
+              onClick={() => {
+                if (isPlaying) {
+                  stopPlay();
+                } else {
+                  if (frameIndex >= end) setFrameIndex(start);
+                  setIsPlaying(true);
+                }
+              }}
+              className={`p-2 rounded-full text-white transition-colors shadow ${
+                isAtFlag ? (isPaste ? 'bg-red-600 hover:bg-red-500' : 'bg-amber-600 hover:bg-amber-500') : 'bg-sky-600 hover:bg-sky-500'
+              }`}
+            >
+              {isPlaying ? <Pause size={14} /> : <Play size={14} fill="currentColor" />}
+            </button>
+
+            <button
+              onClick={() => { stopPlay(); setFrameIndex(end); }}
+              className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white/80 transition-colors"
+              title="Go to end"
+            >
+              <SkipForward size={14} />
+            </button>
+
+            <div className="flex items-center gap-1 ml-2">
+              {[0.5, 1, 2, 4].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSpeed(s)}
+                  className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                    speed === s ? 'bg-sky-900 text-sky-300' : 'text-white/40 hover:text-white/70 hover:bg-white/10'
+                  }`}
+                >
+                  {s}x
+                </button>
+              ))}
+            </div>
+
+            <div className="ml-auto text-[11px] font-mono text-white/40 flex items-center gap-2">
+              <span>
+                Frame {framePos + 1} / {totalFrames}
+              </span>
+              {isAtFlag && (
+                <span className={`px-2 py-0.5 rounded font-semibold ${
+                  isPaste ? 'bg-red-900/50 text-red-300' : 'bg-amber-900/50 text-amber-300'
+                }`}>
+                  {isPaste ? 'PASTE' : 'BULK INSERT'}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-100 ${
+                  isAtFlag ? (isPaste ? 'bg-red-500' : 'bg-amber-500') : 'bg-sky-500'
+                }`}
+                style={{ width: `${totalFrames > 1 ? (framePos / (totalFrames - 1)) * 100 : 100}%` }}
+              />
+            </div>
+            <div className="absolute inset-y-0 left-0 right-0 flex items-center">
+              {Array.from({ length: totalFrames }, (_, i) => {
+                const isFlag = start + i === flag.index;
+                const pct = totalFrames > 1 ? (i / (totalFrames - 1)) * 100 : 50;
+                return (
+                  <div
+                    key={i}
+                    className={`absolute -translate-x-1/2 rounded-full cursor-pointer transition-all ${
+                      isFlag
+                        ? (isPaste ? 'w-3 h-3 bg-red-400 border-2 border-red-200' : 'w-3 h-3 bg-amber-400 border-2 border-amber-200')
+                        : start + i === frameIndex
+                          ? 'w-2.5 h-2.5 bg-sky-300'
+                          : 'w-1.5 h-1.5 bg-white/20 hover:bg-white/50'
+                    }`}
+                    style={{ left: `${pct}%` }}
+                    onClick={() => { stopPlay(); setFrameIndex(start + i); }}
+                    title={`Frame ${i + 1}${isFlag ? ' — ' + (isPaste ? 'PASTE' : 'BULK INSERT') : ''} @ ${formatTime(snapshots[start + i].timestamp_ms)}`}
+                  />
+                );
+              })}
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={totalFrames - 1}
+              value={framePos}
+              onChange={(e) => { stopPlay(); setFrameIndex(start + Number(e.target.value)); }}
+              className="absolute inset-0 w-full opacity-0 cursor-pointer h-1.5"
+            />
+          </div>
+          <div className="flex justify-between mt-1 text-[10px] text-white/25 font-mono">
+            <span>{formatTime(snapshots[start].timestamp_ms)}</span>
+            <span>{formatTime(snapshots[end].timestamp_ms)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SessionReview({ shareId }: SessionReviewProps) {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [durationMs, setDurationMs] = useState(0);
@@ -258,6 +518,7 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
   const [showFlags, setShowFlags] = useState(true);
   const [flagPlayRange, setFlagPlayRange] = useState<{ start: number; end: number } | null>(null);
   const [inspectFlag, setInspectFlag] = useState<FlaggedMoment | null>(null);
+  const [playFlag, setPlayFlag] = useState<FlaggedMoment | null>(null);
   const playRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const codeContainerRef = useRef<HTMLDivElement>(null);
 
@@ -358,21 +619,8 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
   }, [stopPlayback, snapshots]);
 
   const playFlagInContext = useCallback((flag: FlaggedMoment) => {
-    stopPlayback();
-    const start = Math.max(0, flag.index - PRE_FLAG_CONTEXT);
-    const end = Math.min(snapshots.length - 1, flag.index + POST_FLAG_CONTEXT);
-    setFlagPlayRange({ start, end });
-    setCurrentIndex(start);
-    const snap = snapshots[flag.index];
-    if (snap) {
-      const prev = flag.index > 0 ? snapshots[flag.index - 1] : null;
-      setActiveTab(findChangedFile(snap, prev));
-    }
-    setIsPlaying(true);
-    if (codeContainerRef.current) {
-      codeContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [stopPlayback, snapshots]);
+    setPlayFlag(flag);
+  }, []);
 
   useEffect(() => {
     if (flagPlayRange && currentIndex >= flagPlayRange.end && isPlaying) {
@@ -808,6 +1056,14 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           prevSnapshot={inspectFlag.index > 0 ? snapshots[inspectFlag.index - 1] : null}
           file={inspectFlag.file}
           onClose={() => setInspectFlag(null)}
+        />
+      )}
+
+      {playFlag && (
+        <FlagPlaybackModal
+          flag={playFlag}
+          snapshots={snapshots}
+          onClose={() => setPlayFlag(null)}
         />
       )}
     </div>
