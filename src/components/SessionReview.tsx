@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { loadSession, type Snapshot } from '../lib/sessions';
-import { Play, Pause, SkipBack, SkipForward, Clock, FileCode, Eye, Loader2, User, AlertTriangle, Clipboard, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Play, Pause, SkipBack, SkipForward, Clock, FileCode, Eye, Loader2, User,
+  AlertTriangle, Clipboard, ChevronDown, ChevronUp, Video, ZoomIn, ArrowRight,
+} from 'lucide-react';
 import NotebookRenderer from './notebook/NotebookRenderer';
 
 interface SessionReviewProps {
@@ -8,6 +11,8 @@ interface SessionReviewProps {
 }
 
 const SUSPICIOUS_CHARS_THRESHOLD = 80;
+const PRE_FLAG_CONTEXT = 6;
+const POST_FLAG_CONTEXT = 4;
 
 interface FlaggedMoment {
   index: number;
@@ -42,31 +47,167 @@ function findChangedFile(current: Snapshot, prev: Snapshot | null): string {
   return current.active_file;
 }
 
-function DiffHighlightedCode({ code, prevCode }: { code: string; prevCode: string }) {
+function diffLines(code: string, prevCode: string): { line: string; status: 'new' | 'changed' | 'same' }[] {
   const lines = code.split('\n');
   const prevLines = prevCode.split('\n');
+  return lines.map((line, i) => {
+    const isNew = i >= prevLines.length;
+    const isChanged = !isNew && line !== prevLines[i];
+    return { line, status: isNew ? 'new' : isChanged ? 'changed' : 'same' };
+  });
+}
+
+function DiffHighlightedCode({ code, prevCode, highlight }: { code: string; prevCode: string; highlight?: boolean }) {
+  const diffed = diffLines(code, prevCode);
 
   return (
     <div className="font-mono text-sm leading-6">
-      {lines.map((line, i) => {
-        const isNew = i >= prevLines.length;
-        const isChanged = !isNew && line !== prevLines[i];
-        let bg = '';
-        if (isNew) bg = 'bg-emerald-50 border-l-2 border-emerald-400';
-        else if (isChanged) bg = 'bg-amber-50 border-l-2 border-amber-400';
-        else bg = 'border-l-2 border-transparent';
+      {diffed.map(({ line, status }, i) => {
+        let bg = 'border-l-2 border-transparent';
+        if (status === 'new') {
+          bg = highlight
+            ? 'bg-emerald-100 border-l-4 border-emerald-500 animate-pulse-once'
+            : 'bg-emerald-50 border-l-2 border-emerald-400';
+        } else if (status === 'changed') {
+          bg = highlight
+            ? 'bg-amber-100 border-l-4 border-amber-500 animate-pulse-once'
+            : 'bg-amber-50 border-l-2 border-amber-400';
+        }
 
         return (
-          <div key={i} className={`flex ${bg} transition-colors duration-150`}>
+          <div key={i} className={`flex ${bg} transition-colors duration-200`}>
             <span className="select-none w-12 text-right pr-4 text-slate-400 text-xs leading-6 flex-shrink-0">
               {i + 1}
             </span>
-            <pre className="flex-1 whitespace-pre-wrap break-all text-slate-800">
+            <pre className={`flex-1 whitespace-pre-wrap break-all ${
+              status !== 'same' ? 'text-slate-900 font-medium' : 'text-slate-800'
+            }`}>
               {line || ' '}
             </pre>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function FlagEventPanel({
+  flag,
+  snapshot,
+  prevSnapshot,
+  file,
+  onClose,
+}: {
+  flag: FlaggedMoment;
+  snapshot: Snapshot;
+  prevSnapshot: Snapshot | null;
+  file: string;
+  onClose: () => void;
+}) {
+  const files = snapshot.files as Record<string, string>;
+  const prevFiles = prevSnapshot ? (prevSnapshot.files as Record<string, string>) : {};
+  const code = files[file] || '';
+  const prevCode = prevFiles[file] || '';
+  const diffed = diffLines(code, prevCode);
+  const changedLines = diffed.filter(l => l.status !== 'same');
+  const addedChars = changedLines.reduce((s, l) => s + l.line.length, 0);
+  const isPaste = flag.event === 'paste';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+        <div className={`flex items-center justify-between px-5 py-3.5 border-b ${
+          isPaste ? 'bg-red-600' : 'bg-amber-500'
+        }`}>
+          <div className="flex items-center gap-3">
+            {isPaste ? (
+              <div className="flex items-center gap-2 text-white">
+                <Clipboard size={16} />
+                <span className="font-semibold text-sm">Paste Detected</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-white">
+                <AlertTriangle size={16} />
+                <span className="font-semibold text-sm">Bulk Insert Detected</span>
+              </div>
+            )}
+            <span className="text-white/80 text-xs font-mono bg-black/20 px-2 py-0.5 rounded">
+              {formatTime(flag.timestamp_ms)}
+            </span>
+            <span className="text-white/80 text-xs">
+              +{addedChars} chars in {changedLines.length} line{changedLines.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white text-xs px-2 py-1 rounded hover:bg-black/20 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 flex gap-0 overflow-hidden">
+          <div className="flex-1 min-w-0 flex flex-col border-r border-slate-200">
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+              <ArrowRight size={12} className="text-slate-400" />
+              <span className="text-xs font-medium text-slate-600">Before</span>
+              <span className="text-xs text-slate-400 font-mono ml-auto">{file}</span>
+            </div>
+            <div className="flex-1 overflow-auto bg-white">
+              <div className="px-3 py-2">
+                <div className="font-mono text-sm leading-6">
+                  {prevCode.split('\n').map((line, i) => (
+                    <div key={i} className="flex border-l-2 border-transparent">
+                      <span className="select-none w-12 text-right pr-4 text-slate-300 text-xs leading-6 shrink-0">{i + 1}</span>
+                      <pre className="flex-1 whitespace-pre-wrap break-all text-slate-500">{line || ' '}</pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+              <ArrowRight size={12} className={isPaste ? 'text-red-500' : 'text-amber-500'} />
+              <span className="text-xs font-medium text-slate-600">After</span>
+              <span className={`text-[10px] font-bold ml-1 px-1.5 py-0.5 rounded ${
+                isPaste ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                {isPaste ? 'PASTED' : 'BULK INSERT'}
+              </span>
+            </div>
+            <div className="flex-1 overflow-auto bg-white">
+              <div className="px-3 py-2">
+                <DiffHighlightedCode code={code} prevCode={prevCode} highlight />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {changedLines.length > 0 && (
+          <div className="px-5 py-3 bg-slate-50 border-t border-slate-200">
+            <p className="text-xs font-medium text-slate-600 mb-2">Added / Changed Lines:</p>
+            <div className="space-y-1 max-h-28 overflow-auto">
+              {changedLines.slice(0, 20).map((l, i) => (
+                <div key={i} className={`flex gap-2 font-mono text-[11px] px-2 py-1 rounded ${
+                  l.status === 'new'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border border-amber-200'
+                }`}>
+                  <span className="text-slate-400 shrink-0">{l.status === 'new' ? '+' : '~'}</span>
+                  <span className="whitespace-pre-wrap break-all">{l.line || '(empty)'}</span>
+                </div>
+              ))}
+              {changedLines.length > 20 && (
+                <p className="text-[10px] text-slate-400 text-center py-1">
+                  +{changedLines.length - 20} more lines…
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -82,7 +223,10 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [activeTab, setActiveTab] = useState('');
   const [showFlags, setShowFlags] = useState(true);
+  const [flagPlayRange, setFlagPlayRange] = useState<{ start: number; end: number } | null>(null);
+  const [inspectFlag, setInspectFlag] = useState<FlaggedMoment | null>(null);
   const playRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const codeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadSession(shareId).then((result) => {
@@ -108,7 +252,6 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
       const prev = i > 0 ? snapshots[i - 1] : null;
       const charsAdded = computeCharsAdded(snap, prev);
       const isFlagged = charsAdded >= SUSPICIOUS_CHARS_THRESHOLD || snap.event === 'paste';
-
       if (isFlagged) {
         flags.push({
           index: i,
@@ -135,14 +278,20 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
   useEffect(() => {
     if (!isPlaying || snapshots.length === 0) return;
 
-    if (currentIndex >= snapshots.length - 1) {
+    const endIndex = flagPlayRange ? flagPlayRange.end : snapshots.length - 1;
+
+    if (currentIndex >= endIndex) {
       stopPlayback();
+      if (flagPlayRange) setFlagPlayRange(null);
       return;
     }
 
     const currentMs = snapshots[currentIndex].timestamp_ms;
     const nextMs = snapshots[currentIndex + 1].timestamp_ms;
-    const delay = Math.max(50, (nextMs - currentMs) / playbackSpeed);
+    const timeDiff = nextMs - currentMs;
+    const delay = flagPlayRange
+      ? Math.max(80, Math.min(timeDiff / playbackSpeed, 600))
+      : Math.max(50, timeDiff / playbackSpeed);
 
     playRef.current = setTimeout(() => {
       setCurrentIndex((i) => i + 1);
@@ -151,11 +300,12 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
     return () => {
       if (playRef.current) clearTimeout(playRef.current);
     };
-  }, [isPlaying, currentIndex, snapshots, playbackSpeed, stopPlayback]);
+  }, [isPlaying, currentIndex, snapshots, playbackSpeed, stopPlayback, flagPlayRange]);
 
   const togglePlayback = useCallback(() => {
     if (isPlaying) {
       stopPlayback();
+      setFlagPlayRange(null);
     } else {
       if (currentIndex >= snapshots.length - 1) setCurrentIndex(0);
       setIsPlaying(true);
@@ -164,6 +314,7 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
 
   const jumpToFlag = useCallback((index: number) => {
     stopPlayback();
+    setFlagPlayRange(null);
     setCurrentIndex(index);
     const snap = snapshots[index];
     if (snap) {
@@ -171,6 +322,30 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
       setActiveTab(findChangedFile(snap, prev));
     }
   }, [stopPlayback, snapshots]);
+
+  const playFlagInContext = useCallback((flag: FlaggedMoment) => {
+    stopPlayback();
+    const start = Math.max(0, flag.index - PRE_FLAG_CONTEXT);
+    const end = Math.min(snapshots.length - 1, flag.index + POST_FLAG_CONTEXT);
+    setFlagPlayRange({ start, end });
+    setCurrentIndex(start);
+    const snap = snapshots[flag.index];
+    if (snap) {
+      const prev = flag.index > 0 ? snapshots[flag.index - 1] : null;
+      setActiveTab(findChangedFile(snap, prev));
+    }
+    setIsPlaying(true);
+    if (codeContainerRef.current) {
+      codeContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [stopPlayback, snapshots]);
+
+  useEffect(() => {
+    if (flagPlayRange && currentIndex >= flagPlayRange.end && isPlaying) {
+      stopPlayback();
+      setFlagPlayRange(null);
+    }
+  }, [currentIndex, flagPlayRange, isPlaying, stopPlayback]);
 
   if (loading) {
     return (
@@ -208,6 +383,12 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
   const progress = durationMs > 0 ? (snapshot.timestamp_ms / durationMs) * 100 : 0;
   const currentCharsAdded = computeCharsAdded(snapshot, prevSnapshot);
   const isCurrentFlagged = flaggedIndices.has(currentIndex);
+  const currentFlag = isCurrentFlagged
+    ? flaggedMoments.find(f => f.index === currentIndex) ?? null
+    : null;
+
+  const isFlagPlayback = flagPlayRange !== null;
+  const isAtFlagApex = isFlagPlayback && currentFlag !== null;
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -226,6 +407,12 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           <span className="text-xs text-slate-400 font-mono bg-slate-700/50 px-2 py-0.5 rounded">
             {shareId}
           </span>
+          {isFlagPlayback && (
+            <span className="flex items-center gap-1.5 text-xs text-amber-300 bg-amber-900/40 px-2.5 py-0.5 rounded-full animate-pulse">
+              <Video size={12} />
+              Playing flag context
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-4 text-xs text-slate-400">
           {flaggedMoments.length > 0 && (
@@ -253,49 +440,82 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           >
             <span className="flex items-center gap-2">
               <AlertTriangle size={13} />
-              {flaggedMoments.length} suspicious moment{flaggedMoments.length !== 1 ? 's' : ''} detected
+              {flaggedMoments.length} suspicious moment{flaggedMoments.length !== 1 ? 's' : ''} detected — click a flag to play back the event
             </span>
             {showFlags ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
           {showFlags && (
             <div className="px-5 pb-3 space-y-1.5">
               {flaggedMoments.map((flag) => (
-                <button
+                <div
                   key={flag.index}
-                  onClick={() => jumpToFlag(flag.index)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
                     currentIndex === flag.index
                       ? 'bg-amber-200/60 ring-1 ring-amber-300'
-                      : 'bg-white/70 hover:bg-white'
+                      : 'bg-white/70'
                   }`}
                 >
-                  <span className="text-xs font-mono text-amber-700 tabular-nums w-12 shrink-0">
-                    {formatTime(flag.timestamp_ms)}
-                  </span>
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {flag.event === 'paste' && (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                        <Clipboard size={9} />
-                        PASTE
-                      </span>
-                    )}
-                    {flag.chars_added >= SUSPICIOUS_CHARS_THRESHOLD && (
-                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                        +{flag.chars_added} chars
-                      </span>
-                    )}
-                    <span className="text-[10px] text-slate-500 truncate">{flag.file}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400">Step {flag.index + 1}</span>
-                </button>
+                  <button
+                    onClick={() => jumpToFlag(flag.index)}
+                    className="flex items-center gap-3 flex-1 text-left"
+                  >
+                    <span className="text-xs font-mono text-amber-700 tabular-nums w-12 shrink-0">
+                      {formatTime(flag.timestamp_ms)}
+                    </span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {flag.event === 'paste' && (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                          <Clipboard size={9} />
+                          PASTE
+                        </span>
+                      )}
+                      {flag.chars_added >= SUSPICIOUS_CHARS_THRESHOLD && (
+                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                          +{flag.chars_added} chars
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-500 truncate">{flag.file}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Step {flag.index + 1}</span>
+                  </button>
+
+                  <button
+                    onClick={() => playFlagInContext(flag)}
+                    title="Play this event in context — watch the code change live"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg transition-colors shrink-0 ${
+                      flag.event === 'paste'
+                        ? 'bg-red-600 hover:bg-red-500 text-white'
+                        : 'bg-amber-600 hover:bg-amber-500 text-white'
+                    }`}
+                  >
+                    <Video size={11} />
+                    Play
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      jumpToFlag(flag.index);
+                      setInspectFlag(flag);
+                    }}
+                    title="Inspect before/after diff for this event"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg transition-colors shrink-0 bg-slate-800 hover:bg-slate-700 text-white"
+                  >
+                    <ZoomIn size={11} />
+                    Inspect
+                  </button>
+                </div>
               ))}
             </div>
           )}
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex flex-col">
-        <div className="flex items-center gap-1 px-4 py-1.5 bg-white border-b border-slate-200">
+      <div className="flex-1 min-h-0 flex flex-col" ref={codeContainerRef}>
+        <div className={`flex items-center gap-1 px-4 py-1.5 border-b transition-colors ${
+          isAtFlagApex
+            ? (currentFlag?.event === 'paste' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200')
+            : 'bg-white border-slate-200'
+        }`}>
           {fileNames.map((name) => (
             <button
               key={name}
@@ -316,27 +536,53 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           {isCurrentFlagged && (
             <div className="ml-auto flex items-center gap-2">
               {snapshot.event === 'paste' && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full animate-pulse">
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-100 border border-red-300 px-2.5 py-0.5 rounded-full">
                   <Clipboard size={10} />
-                  PASTE DETECTED
+                  PASTE DETECTED HERE
                 </span>
               )}
               {currentCharsAdded >= SUSPICIOUS_CHARS_THRESHOLD && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full">
                   <AlertTriangle size={10} />
                   +{currentCharsAdded} chars in ~1s
                 </span>
               )}
+              {currentFlag && (
+                <button
+                  onClick={() => setInspectFlag(currentFlag)}
+                  className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-800 bg-white border border-slate-300 px-2 py-0.5 rounded-full transition-colors"
+                >
+                  <ZoomIn size={10} />
+                  Inspect
+                </button>
+              )}
+            </div>
+          )}
+
+          {isFlagPlayback && !isAtFlagApex && (
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Video size={9} />
+                Playing flag context…
+              </span>
             </div>
           )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto bg-white">
+        <div className={`flex-1 min-h-0 overflow-auto transition-colors duration-300 ${
+          isAtFlagApex
+            ? (currentFlag?.event === 'paste' ? 'bg-red-50/30' : 'bg-amber-50/30')
+            : 'bg-white'
+        }`}>
           {displayFile.endsWith('.ipynb') ? (
             <NotebookRenderer content={currentCode} />
           ) : (
             <div className="px-4 py-3">
-              <DiffHighlightedCode code={currentCode} prevCode={prevCode} />
+              <DiffHighlightedCode
+                code={currentCode}
+                prevCode={prevCode}
+                highlight={isAtFlagApex}
+              />
             </div>
           )}
         </div>
@@ -345,7 +591,7 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
       <div className="bg-white border-t border-slate-200 px-5 py-4">
         <div className="flex items-center gap-3 mb-3">
           <button
-            onClick={() => { stopPlayback(); setCurrentIndex(0); }}
+            onClick={() => { stopPlayback(); setFlagPlayRange(null); setCurrentIndex(0); }}
             className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
             title="Go to start"
           >
@@ -354,19 +600,32 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
 
           <button
             onClick={togglePlayback}
-            className="p-2 rounded-full bg-sky-600 hover:bg-sky-500 text-white transition-colors shadow-sm"
+            className={`p-2 rounded-full text-white transition-colors shadow-sm ${
+              isFlagPlayback
+                ? 'bg-amber-600 hover:bg-amber-500'
+                : 'bg-sky-600 hover:bg-sky-500'
+            }`}
             title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}
           </button>
 
           <button
-            onClick={() => { stopPlayback(); setCurrentIndex(snapshots.length - 1); }}
+            onClick={() => { stopPlayback(); setFlagPlayRange(null); setCurrentIndex(snapshots.length - 1); }}
             className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
             title="Go to end"
           >
             <SkipForward size={16} />
           </button>
+
+          {isFlagPlayback && (
+            <button
+              onClick={() => { stopPlayback(); setFlagPlayRange(null); }}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+            >
+              Exit flag replay
+            </button>
+          )}
 
           <div className="flex items-center gap-1.5 ml-2">
             {[0.5, 1, 2, 4].map((speed) => (
@@ -426,6 +685,11 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
             <span className="text-slate-300 ml-1">
               Step {currentIndex + 1} of {snapshots.length}
             </span>
+            {isFlagPlayback && flagPlayRange && (
+              <span className="text-amber-600 font-medium">
+                (flag clip {currentIndex - flagPlayRange.start + 1}/{flagPlayRange.end - flagPlayRange.start + 1})
+              </span>
+            )}
           </div>
         </div>
 
@@ -434,6 +698,7 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
             {snapshots.map((s, i) => {
               const left = durationMs > 0 ? (s.timestamp_ms / durationMs) * 100 : 0;
               const isFlagged = flaggedIndices.has(i);
+              const isInRange = flagPlayRange && i >= flagPlayRange.start && i <= flagPlayRange.end;
               return (
                 <div
                   key={i}
@@ -442,14 +707,16 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
                       ? i === currentIndex
                         ? 'h-5 w-1.5 bg-red-500'
                         : 'h-4 w-1 bg-amber-400 group-hover:h-5'
-                      : i === currentIndex
-                        ? 'h-4 w-0.5 bg-sky-500'
-                        : 'h-2 w-0.5 bg-slate-300 group-hover:h-3 group-hover:bg-slate-400'
+                      : isInRange
+                        ? 'h-3 w-0.5 bg-amber-300'
+                        : i === currentIndex
+                          ? 'h-4 w-0.5 bg-sky-500'
+                          : 'h-2 w-0.5 bg-slate-300 group-hover:h-3 group-hover:bg-slate-400'
                   }`}
                   style={{ left: `${left}%` }}
                   title={
                     isFlagged
-                      ? `${formatTime(s.timestamp_ms)} - ${s.event === 'paste' ? 'PASTE' : 'Bulk insert'} (+${computeCharsAdded(s, i > 0 ? snapshots[i-1] : null)} chars)`
+                      ? `${formatTime(s.timestamp_ms)} - ${s.event === 'paste' ? 'PASTE' : 'Bulk insert'} (+${computeCharsAdded(s, i > 0 ? snapshots[i - 1] : null)} chars)`
                       : `${formatTime(s.timestamp_ms)}`
                   }
                 />
@@ -458,8 +725,19 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           </div>
 
           <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
+            {flagPlayRange && (
+              <div
+                className="absolute inset-y-0 bg-amber-200/60"
+                style={{
+                  left: `${durationMs > 0 ? (snapshots[flagPlayRange.start].timestamp_ms / durationMs) * 100 : 0}%`,
+                  width: `${durationMs > 0 ? ((snapshots[flagPlayRange.end].timestamp_ms - snapshots[flagPlayRange.start].timestamp_ms) / durationMs) * 100 : 0}%`,
+                }}
+              />
+            )}
             <div
-              className="absolute inset-y-0 left-0 bg-sky-500/20 rounded-full transition-all duration-150"
+              className={`absolute inset-y-0 left-0 rounded-full transition-all duration-150 ${
+                isFlagPlayback ? 'bg-amber-500/30' : 'bg-sky-500/20'
+              }`}
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -471,12 +749,23 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
             value={currentIndex}
             onChange={(e) => {
               stopPlayback();
+              setFlagPlayRange(null);
               setCurrentIndex(Number(e.target.value));
             }}
             className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
           />
         </div>
       </div>
+
+      {inspectFlag && (
+        <FlagEventPanel
+          flag={inspectFlag}
+          snapshot={snapshots[inspectFlag.index]}
+          prevSnapshot={inspectFlag.index > 0 ? snapshots[inspectFlag.index - 1] : null}
+          file={inspectFlag.file}
+          onClose={() => setInspectFlag(null)}
+        />
+      )}
     </div>
   );
 }
