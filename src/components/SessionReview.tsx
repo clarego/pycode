@@ -154,16 +154,20 @@ function FlagEventPanel({
               <span className="text-xs text-slate-400 font-mono ml-auto">{file}</span>
             </div>
             <div className="flex-1 overflow-auto bg-white">
-              <div className="px-3 py-2">
-                <div className="font-mono text-sm leading-6">
-                  {prevCode.split('\n').map((line, i) => (
-                    <div key={i} className="flex border-l-2 border-transparent">
-                      <span className="select-none w-12 text-right pr-4 text-slate-300 text-xs leading-6 shrink-0">{i + 1}</span>
-                      <pre className="flex-1 whitespace-pre-wrap break-all text-slate-500">{line || ' '}</pre>
-                    </div>
-                  ))}
+              {file.endsWith('.ipynb') ? (
+                <NotebookRenderer content={prevCode || '{}'} />
+              ) : (
+                <div className="px-3 py-2">
+                  <div className="font-mono text-sm leading-6">
+                    {prevCode.split('\n').map((line, i) => (
+                      <div key={i} className="flex border-l-2 border-transparent">
+                        <span className="select-none w-12 text-right pr-4 text-slate-300 text-xs leading-6 shrink-0">{i + 1}</span>
+                        <pre className="flex-1 whitespace-pre-wrap break-all text-slate-500">{line || ' '}</pre>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -178,14 +182,18 @@ function FlagEventPanel({
               </span>
             </div>
             <div className="flex-1 overflow-auto bg-white">
-              <div className="px-3 py-2">
-                <DiffHighlightedCode code={code} prevCode={prevCode} highlight />
-              </div>
+              {file.endsWith('.ipynb') ? (
+                <NotebookRenderer content={code} />
+              ) : (
+                <div className="px-3 py-2">
+                  <DiffHighlightedCode code={code} prevCode={prevCode} highlight />
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {changedLines.length > 0 && (
+        {changedLines.length > 0 && !file.endsWith('.ipynb') && (
           <div className="px-5 py-3 bg-slate-50 border-t border-slate-200">
             <p className="text-xs font-medium text-slate-600 mb-2">Added / Changed Lines:</p>
             <div className="space-y-1 max-h-28 overflow-auto">
@@ -205,6 +213,13 @@ function FlagEventPanel({
                 </p>
               )}
             </div>
+          </div>
+        )}
+        {file.endsWith('.ipynb') && (
+          <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
+            <span className="text-xs text-slate-500">
+              Notebook changed — {changedLines.length} line{changedLines.length !== 1 ? 's' : ''} modified ({addedChars} chars added)
+            </span>
           </div>
         )}
       </div>
