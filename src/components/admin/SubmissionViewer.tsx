@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { loadPdfAnnotation } from '../../lib/pdfAnnotations';
 import type { AnnotationState } from '../../lib/pdfAnnotations';
 import PdfAnnotator from '../pdf/PdfAnnotator';
-import NotebookRenderer from '../notebook/NotebookRenderer';
+import AdminNotebookViewer from './AdminNotebookViewer';
 
 const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
@@ -53,40 +53,77 @@ function FilesModal({ files, studentName, onClose }: { files: Record<string, str
   const filenames = Object.keys(files);
   const [activeFile, setActiveFile] = useState(filenames[0] || '');
 
+  const isNotebook = activeFile.endsWith('.ipynb');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+      <div
+        className="relative rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        style={{
+          width: isNotebook ? '90vw' : undefined,
+          maxWidth: isNotebook ? '1100px' : '768px',
+          height: isNotebook ? '90vh' : undefined,
+          maxHeight: isNotebook ? undefined : '80vh',
+          backgroundColor: isNotebook ? '#1e1e1e' : 'white',
+        }}
+      >
+        <div
+          className="flex items-center justify-between px-4 py-3 border-b shrink-0"
+          style={{
+            borderColor: isNotebook ? '#3c3c3c' : '#e2e8f0',
+            backgroundColor: isNotebook ? '#252526' : '#f8fafc',
+          }}
+        >
           <div className="flex items-center gap-2">
-            <FileCode size={16} className="text-slate-500" />
-            <span className="text-sm font-semibold text-slate-700">{studentName}'s Files</span>
-            <span className="text-xs text-slate-400">{filenames.length} file{filenames.length !== 1 ? 's' : ''}</span>
+            <FileCode size={16} style={{ color: isNotebook ? '#569cd6' : '#64748b' }} />
+            <span className="text-sm font-semibold" style={{ color: isNotebook ? '#d4d4d4' : '#334155' }}>
+              {studentName}'s Files
+            </span>
+            <span className="text-xs" style={{ color: isNotebook ? '#858585' : '#94a3b8' }}>
+              {filenames.length} file{filenames.length !== 1 ? 's' : ''}
+            </span>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+          <button
+            onClick={onClose}
+            className="p-1 rounded transition-colors"
+            style={{ color: isNotebook ? '#858585' : '#94a3b8' }}
+          >
             <X size={16} />
           </button>
         </div>
         {filenames.length > 1 && (
-          <div className="flex border-b border-slate-200 bg-slate-50 px-2 overflow-x-auto">
-            {filenames.map((name) => (
-              <button
-                key={name}
-                onClick={() => setActiveFile(name)}
-                className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  activeFile === name
-                    ? 'border-sky-500 text-sky-700'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {name}
-              </button>
-            ))}
+          <div
+            className="flex border-b px-2 overflow-x-auto shrink-0"
+            style={{ borderColor: isNotebook ? '#3c3c3c' : '#e2e8f0', backgroundColor: isNotebook ? '#252526' : '#f8fafc' }}
+          >
+            {filenames.map((name) => {
+              const isActive = activeFile === name;
+              return (
+                <button
+                  key={name}
+                  onClick={() => setActiveFile(name)}
+                  className="px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors"
+                  style={{
+                    borderColor: isActive ? (isNotebook ? '#569cd6' : '#0ea5e9') : 'transparent',
+                    color: isActive
+                      ? (isNotebook ? '#569cd6' : '#0369a1')
+                      : (isNotebook ? '#858585' : '#64748b'),
+                  }}
+                >
+                  {name}
+                </button>
+              );
+            })}
           </div>
         )}
-        <div className="flex-1 overflow-auto p-0">
-          {activeFile.endsWith('.ipynb') ? (
-            <NotebookRenderer content={files[activeFile] || ''} />
+        <div className="flex-1 overflow-auto min-h-0">
+          {isNotebook ? (
+            <AdminNotebookViewer
+              key={activeFile}
+              content={files[activeFile] || ''}
+              filename={activeFile}
+            />
           ) : (
             <pre className="text-xs text-slate-700 font-mono leading-relaxed p-4 whitespace-pre-wrap break-words">
               {files[activeFile] || ''}
