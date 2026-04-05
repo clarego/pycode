@@ -3,6 +3,7 @@ import { loadSession, type Snapshot } from '../lib/sessions';
 import {
   Play, Pause, SkipBack, SkipForward, Clock, FileCode, Eye, Loader2, User,
   AlertTriangle, Clipboard, ChevronDown, ChevronUp, Video, ZoomIn, ArrowRight,
+  Timer,
 } from 'lucide-react';
 import NotebookRenderer from './notebook/NotebookRenderer';
 
@@ -17,6 +18,7 @@ const POST_FLAG_CONTEXT = 4;
 interface FlaggedMoment {
   index: number;
   timestamp_ms: number;
+  prev_timestamp_ms: number;
   chars_added: number;
   event?: string;
   file: string;
@@ -112,57 +114,58 @@ function FlagEventPanel({
   const changedLines = diffed.filter(l => l.status !== 'same');
   const addedChars = changedLines.reduce((s, l) => s + l.line.length, 0);
   const isPaste = flag.event === 'paste';
+  const durationMs = flag.timestamp_ms - flag.prev_timestamp_ms;
+  const durationSec = Math.max(1, Math.round(durationMs / 1000));
+  const isNb = file.endsWith('.ipynb');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
-        <div className={`flex items-center justify-between px-5 py-3.5 border-b ${
-          isPaste ? 'bg-red-600' : 'bg-amber-500'
-        }`}>
-          <div className="flex items-center gap-3">
-            {isPaste ? (
-              <div className="flex items-center gap-2 text-white">
-                <Clipboard size={16} />
-                <span className="font-semibold text-sm">Paste Detected</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-white">
-                <AlertTriangle size={16} />
-                <span className="font-semibold text-sm">Bulk Insert Detected</span>
-              </div>
-            )}
-            <span className="text-white/80 text-xs font-mono bg-black/20 px-2 py-0.5 rounded">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden" style={{ backgroundColor: '#1e1e1e', border: '1px solid #3c3c3c' }}>
+        <div className={`flex items-center justify-between px-5 py-3 ${isPaste ? 'bg-red-700' : 'bg-amber-600'}`}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-white">
+              {isPaste ? <Clipboard size={15} /> : <AlertTriangle size={15} />}
+              <span className="font-semibold text-sm">{isPaste ? 'Paste Detected' : 'Bulk Insert Detected'}</span>
+            </div>
+            <span className="text-white/80 text-xs font-mono bg-black/25 px-2 py-0.5 rounded">
               {formatTime(flag.timestamp_ms)}
             </span>
-            <span className="text-white/80 text-xs">
-              +{addedChars} chars in {changedLines.length} line{changedLines.length !== 1 ? 's' : ''}
+            <span className="flex items-center gap-1 text-white/90 text-xs bg-black/20 px-2 py-0.5 rounded font-medium">
+              <Timer size={11} />
+              +{flag.chars_added} chars in {durationSec}s
+              {durationSec <= 3 && flag.chars_added >= SUSPICIOUS_CHARS_THRESHOLD && (
+                <span className="ml-1 text-white font-bold">— highly suspicious</span>
+              )}
             </span>
+            <span className="text-white/70 text-xs">{changedLines.length} line{changedLines.length !== 1 ? 's' : ''} changed</span>
+            <span className="text-white/60 text-xs font-mono">{file}</span>
           </div>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white text-xs px-2 py-1 rounded hover:bg-black/20 transition-colors"
+            className="text-white/70 hover:text-white text-xs px-3 py-1.5 rounded-lg transition-colors ml-4 shrink-0"
+            style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}
           >
             Close
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 flex gap-0 overflow-hidden">
-          <div className="flex-1 min-w-0 flex flex-col border-r border-slate-200">
-            <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-              <ArrowRight size={12} className="text-slate-400" />
-              <span className="text-xs font-medium text-slate-600">Before</span>
-              <span className="text-xs text-slate-400 font-mono ml-auto">{file}</span>
+        <div className="flex-1 min-h-0 flex overflow-hidden" style={{ minHeight: 0 }}>
+          <div className="flex-1 min-w-0 flex flex-col" style={{ borderRight: '1px solid #3c3c3c' }}>
+            <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ backgroundColor: '#252526', borderBottom: '1px solid #3c3c3c' }}>
+              <ArrowRight size={12} style={{ color: '#858585' }} />
+              <span className="text-xs font-medium" style={{ color: '#d4d4d4' }}>Before</span>
+              <span className="text-[10px] font-mono ml-auto" style={{ color: '#858585' }}>{formatTime(flag.prev_timestamp_ms)}</span>
             </div>
-            <div className="flex-1 overflow-auto bg-white">
-              {file.endsWith('.ipynb') ? (
+            <div className="flex-1 overflow-auto" style={{ backgroundColor: '#1e1e1e' }}>
+              {isNb ? (
                 <NotebookRenderer content={prevCode || '{}'} />
               ) : (
-                <div className="px-3 py-2">
-                  <div className="font-mono text-sm leading-6">
+                <div className="px-0 py-2" style={{ backgroundColor: '#1e1e1e' }}>
+                  <div className="font-mono text-[13px] leading-[1.6]">
                     {prevCode.split('\n').map((line, i) => (
-                      <div key={i} className="flex border-l-2 border-transparent">
-                        <span className="select-none w-12 text-right pr-4 text-slate-300 text-xs leading-6 shrink-0">{i + 1}</span>
-                        <pre className="flex-1 whitespace-pre-wrap break-all text-slate-500">{line || ' '}</pre>
+                      <div key={i} className="flex hover:bg-white/5">
+                        <span className="select-none text-right pr-4 pl-3 text-[12px] w-10 shrink-0 align-top" style={{ color: '#858585' }}>{i + 1}</span>
+                        <pre className="flex-1 pr-4 whitespace-pre-wrap break-all" style={{ color: '#d4d4d4' }}>{line || ' '}</pre>
                       </div>
                     ))}
                   </div>
@@ -172,53 +175,68 @@ function FlagEventPanel({
           </div>
 
           <div className="flex-1 min-w-0 flex flex-col">
-            <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-              <ArrowRight size={12} className={isPaste ? 'text-red-500' : 'text-amber-500'} />
-              <span className="text-xs font-medium text-slate-600">After</span>
-              <span className={`text-[10px] font-bold ml-1 px-1.5 py-0.5 rounded ${
-                isPaste ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-              }`}>
+            <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ backgroundColor: '#252526', borderBottom: '1px solid #3c3c3c' }}>
+              <ArrowRight size={12} style={{ color: isPaste ? '#f48771' : '#dcdcaa' }} />
+              <span className="text-xs font-medium" style={{ color: '#d4d4d4' }}>After</span>
+              <span className={`text-[10px] font-bold ml-1 px-1.5 py-0.5 rounded ${isPaste ? 'bg-red-900/60 text-red-300' : 'bg-amber-900/60 text-amber-300'}`}>
                 {isPaste ? 'PASTED' : 'BULK INSERT'}
               </span>
+              <span className="text-[10px] font-mono ml-auto" style={{ color: '#858585' }}>{formatTime(flag.timestamp_ms)}</span>
             </div>
-            <div className="flex-1 overflow-auto bg-white">
-              {file.endsWith('.ipynb') ? (
-                <NotebookRenderer content={code} />
+            <div className="flex-1 overflow-auto" style={{ backgroundColor: '#1e1e1e' }}>
+              {isNb ? (
+                <NotebookRenderer content={code} highlightNewContent={prevCode || '{}'} />
               ) : (
-                <div className="px-3 py-2">
-                  <DiffHighlightedCode code={code} prevCode={prevCode} highlight />
+                <div className="py-2" style={{ backgroundColor: '#1e1e1e' }}>
+                  {diffed.map(({ line, status }, i) => {
+                    let bg = 'transparent';
+                    let borderColor = 'transparent';
+                    if (status === 'new') { bg = 'rgba(78,201,176,0.12)'; borderColor = '#4ec9b0'; }
+                    else if (status === 'changed') { bg = 'rgba(220,220,170,0.12)'; borderColor = '#dcdcaa'; }
+                    return (
+                      <div key={i} className="flex hover:bg-white/5" style={{ backgroundColor: bg, borderLeft: `3px solid ${borderColor}` }}>
+                        <span className="select-none text-right pr-4 pl-2 text-[12px] w-10 shrink-0" style={{ color: '#858585' }}>{i + 1}</span>
+                        <pre className="flex-1 pr-4 whitespace-pre-wrap break-all font-mono text-[13px] leading-[1.6]" style={{
+                          color: status !== 'same' ? (status === 'new' ? '#4ec9b0' : '#dcdcaa') : '#d4d4d4',
+                          fontWeight: status !== 'same' ? 600 : 400,
+                        }}>{line || ' '}</pre>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {changedLines.length > 0 && !file.endsWith('.ipynb') && (
-          <div className="px-5 py-3 bg-slate-50 border-t border-slate-200">
-            <p className="text-xs font-medium text-slate-600 mb-2">Added / Changed Lines:</p>
-            <div className="space-y-1 max-h-28 overflow-auto">
-              {changedLines.slice(0, 20).map((l, i) => (
-                <div key={i} className={`flex gap-2 font-mono text-[11px] px-2 py-1 rounded ${
-                  l.status === 'new'
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : 'bg-amber-50 text-amber-800 border border-amber-200'
-                }`}>
-                  <span className="text-slate-400 shrink-0">{l.status === 'new' ? '+' : '~'}</span>
-                  <span className="whitespace-pre-wrap break-all">{l.line || '(empty)'}</span>
+        {!isNb && changedLines.length > 0 && (
+          <div className="px-4 py-3 shrink-0" style={{ backgroundColor: '#252526', borderTop: '1px solid #3c3c3c' }}>
+            <p className="text-[11px] font-semibold mb-2" style={{ color: '#858585' }}>Changed Lines ({changedLines.length})</p>
+            <div className="space-y-0.5 max-h-24 overflow-auto">
+              {changedLines.slice(0, 15).map((l, i) => (
+                <div key={i} className="flex gap-2 font-mono text-[11px] px-2 py-0.5 rounded" style={{
+                  backgroundColor: l.status === 'new' ? 'rgba(78,201,176,0.1)' : 'rgba(220,220,170,0.1)',
+                  border: `1px solid ${l.status === 'new' ? 'rgba(78,201,176,0.3)' : 'rgba(220,220,170,0.3)'}`,
+                }}>
+                  <span className="shrink-0" style={{ color: l.status === 'new' ? '#4ec9b0' : '#dcdcaa' }}>
+                    {l.status === 'new' ? '+' : '~'}
+                  </span>
+                  <span className="whitespace-pre-wrap break-all" style={{ color: '#d4d4d4' }}>{l.line || '(empty)'}</span>
                 </div>
               ))}
-              {changedLines.length > 20 && (
-                <p className="text-[10px] text-slate-400 text-center py-1">
-                  +{changedLines.length - 20} more lines…
-                </p>
+              {changedLines.length > 15 && (
+                <p className="text-[10px] text-center py-1" style={{ color: '#555' }}>+{changedLines.length - 15} more lines</p>
               )}
             </div>
           </div>
         )}
-        {file.endsWith('.ipynb') && (
-          <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
-            <span className="text-xs text-slate-500">
-              Notebook changed — {changedLines.length} line{changedLines.length !== 1 ? 's' : ''} modified ({addedChars} chars added)
+        {isNb && (
+          <div className="px-4 py-2.5 shrink-0 flex items-center gap-3" style={{ backgroundColor: '#252526', borderTop: '1px solid #3c3c3c' }}>
+            <span className="text-[11px]" style={{ color: '#858585' }}>
+              Notebook — {changedLines.length} line{changedLines.length !== 1 ? 's' : ''} modified, {addedChars} chars added in {durationSec}s
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(86,156,214,0.15)', color: '#569cd6' }}>
+              Changed cells highlighted in blue
             </span>
           </div>
         )}
@@ -271,6 +289,7 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
         flags.push({
           index: i,
           timestamp_ms: snap.timestamp_ms,
+          prev_timestamp_ms: prev ? prev.timestamp_ms : snap.timestamp_ms,
           chars_added: charsAdded,
           event: snap.event,
           file: findChangedFile(snap, prev),
@@ -461,7 +480,10 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
           </button>
           {showFlags && (
             <div className="px-5 pb-3 space-y-1.5">
-              {flaggedMoments.map((flag) => (
+              {flaggedMoments.map((flag) => {
+                const durationSec = Math.max(1, Math.round((flag.timestamp_ms - flag.prev_timestamp_ms) / 1000));
+                const isHighlySuspicious = durationSec <= 3 && flag.chars_added >= SUSPICIOUS_CHARS_THRESHOLD;
+                return (
                 <div
                   key={flag.index}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
@@ -472,12 +494,12 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
                 >
                   <button
                     onClick={() => jumpToFlag(flag.index)}
-                    className="flex items-center gap-3 flex-1 text-left"
+                    className="flex items-center gap-3 flex-1 text-left min-w-0"
                   >
                     <span className="text-xs font-mono text-amber-700 tabular-nums w-12 shrink-0">
                       {formatTime(flag.timestamp_ms)}
                     </span>
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
                       {flag.event === 'paste' && (
                         <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
                           <Clipboard size={9} />
@@ -485,13 +507,19 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
                         </span>
                       )}
                       {flag.chars_added >= SUSPICIOUS_CHARS_THRESHOLD && (
-                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                          +{flag.chars_added} chars
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                          <Timer size={9} />
+                          +{flag.chars_added} chars in {durationSec}s
+                        </span>
+                      )}
+                      {isHighlySuspicious && (
+                        <span className="text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                          highly suspicious
                         </span>
                       )}
                       <span className="text-[10px] text-slate-500 truncate">{flag.file}</span>
                     </div>
-                    <span className="text-[10px] text-slate-400">Step {flag.index + 1}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">Step {flag.index + 1}</span>
                   </button>
 
                   <button
@@ -519,7 +547,8 @@ export default function SessionReview({ shareId }: SessionReviewProps) {
                     Inspect
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
