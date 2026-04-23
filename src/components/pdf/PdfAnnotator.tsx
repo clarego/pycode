@@ -34,6 +34,9 @@ interface PdfAnnotatorProps {
 }
 
 const EMPTY_STATE: AnnotationState = { textBoxes: [], images: [], drawings: [] };
+const ZOOM_LEVELS = [50, 75, 100, 125, 150, 175, 200, 250, 300];
+const PAGE_WIDTH_PX = 794;
+const PAGE_HEIGHT_PX = 1123;
 
 function genId() {
   return Math.random().toString(36).slice(2, 10);
@@ -53,7 +56,24 @@ export default function PdfAnnotator({
   const [fontSize, setFontSize] = useState(14);
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pdfLoaded, setPdfLoaded] = useState(false);
+
+  useEffect(() => {
+    async function detectPageCount() {
+      try {
+        const res = await fetch(pdfUrl, { method: 'GET', headers: { Range: 'bytes=0-65535' } });
+        const text = await res.text();
+        const match = text.match(/\/N\s+(\d+)|\/Count\s+(\d+)/);
+        if (match) {
+          const count = parseInt(match[1] || match[2]);
+          if (count > 0 && count < 2000) setTotalPages(count);
+        }
+      } catch {
+      }
+    }
+    detectPageCount();
+  }, [pdfUrl]);
 
   const [state, setState] = useState<AnnotationState>(initialState ?? EMPTY_STATE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -63,9 +83,8 @@ export default function PdfAnnotator({
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
 
   const overlayRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const exportCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const objectRef = useRef<HTMLObjectElement>(null);
   const dragState = useRef<{
     id: string;
     type: 'textbox' | 'image';
@@ -86,6 +105,9 @@ export default function PdfAnnotator({
   useEffect(() => {
     if (initialState) setState(initialState);
   }, [initialState]);
+
+  const scaledWidth = Math.round((PAGE_WIDTH_PX * zoom) / 100);
+  const scaledHeight = Math.round((PAGE_HEIGHT_PX * zoom) / 100);
 
   const pageAnnotations = {
     textBoxes: state.textBoxes.filter((t) => t.page === currentPage),
@@ -183,7 +205,7 @@ export default function PdfAnnotator({
     }
   }
 
-  function handleOverlayMouseUp(_e: React.MouseEvent | MouseEvent) {
+  function handleOverlayMouseUp() {
     if (isDrawing && currentPath.length > 1) {
       const newPath: DrawingPath = {
         id: genId(),
@@ -308,16 +330,30 @@ export default function PdfAnnotator({
     a.click();
   }, [filename]);
 
-  const zoomIn = () => setZoom((z) => Math.min(z + 25, 300));
-  const zoomOut = () => setZoom((z) => Math.max(z - 25, 50));
+  const zoomIn = () => {
+    setPdfLoaded(false);
+    const idx = ZOOM_LEVELS.findIndex((z) => z >= zoom);
+    const next = ZOOM_LEVELS[Math.min(idx + 1, ZOOM_LEVELS.length - 1)];
+    setZoom(next > zoom ? next : ZOOM_LEVELS[Math.min(idx + 1, ZOOM_LEVELS.length - 1)]);
+  };
 
-  const pdfPageUrl = totalPages > 1
-    ? `${pdfUrl}#page=${currentPage}`
-    : pdfUrl;
+  const zoomOut = () => {
+    setPdfLoaded(false);
+    const idx = ZOOM_LEVELS.findLastIndex((z) => z <= zoom);
+    const prev = ZOOM_LEVELS[Math.max(idx - 1, 0)];
+    setZoom(prev < zoom ? prev : ZOOM_LEVELS[Math.max(idx - 1, 0)]);
+  };
+
+  const goToPrev = () => { setPdfLoaded(false); setCurrentPage((p) => Math.max(1, p - 1)); };
+  const goToNext = () => { setPdfLoaded(false); setCurrentPage((p) => Math.min(totalPages, p + 1)); };
+
+  const pdfSrc = `${pdfUrl}#page=${currentPage}&toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
 
   const overlayStyle: React.CSSProperties = {
-    transform: `scale(${zoom / 100})`,
-    transformOrigin: 'top left',
+    position: 'absolute',
+    inset: 0,
+    width: scaledWidth,
+    height: scaledHeight,
     cursor:
       tool === 'draw' || tool === 'eraser'
         ? 'crosshair'
@@ -328,6 +364,8 @@ export default function PdfAnnotator({
         : 'default',
   };
 
+  const annotationScale = zoom / 100;
+
   return (
     <div
       className="flex flex-col h-full bg-slate-100 outline-none"
@@ -337,8 +375,11 @@ export default function PdfAnnotator({
         if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && editingTextId === null) {
           deleteSelected();
         }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goToNext();
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goToPrev();
       }}
     >
+      {/* Toolbar */}
       <div className="flex items-center gap-1.5 px-3 py-2 bg-white border-b border-slate-200 shrink-0 flex-wrap">
         <span className="text-xs font-medium text-slate-600 mr-1 truncate max-w-[140px]">{filename}</span>
         <div className="w-px h-4 bg-slate-200 mx-1" />
@@ -429,29 +470,70 @@ export default function PdfAnnotator({
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-1">
-          <button onClick={zoomOut} disabled={zoom <= 50} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 rounded transition-colors" title="Zoom out">
-            <Minus size={13} />
+        {/* Page navigation */}
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1 py-0.5">
+          <button
+            onClick={goToPrev}
+            disabled={currentPage <= 1}
+            className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 rounded transition-colors"
+            title="Previous page"
+          >
+            <ChevronLeft size={14} />
           </button>
-          <span className="text-xs text-slate-500 font-medium w-10 text-center">{zoom}%</span>
-          <button onClick={zoomIn} disabled={zoom >= 300} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 rounded transition-colors" title="Zoom in">
-            <Plus size={13} />
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              value={currentPage}
+              onChange={(e) => {
+                const v = parseInt(e.target.value);
+                if (v >= 1 && v <= totalPages) setCurrentPage(v);
+              }}
+              className="w-9 text-center text-xs font-medium bg-white border border-slate-200 rounded px-1 py-0.5 focus:outline-none focus:border-sky-400"
+            />
+            <span className="text-xs text-slate-400">/ {totalPages}</span>
+          </div>
+          <button
+            onClick={goToNext}
+            disabled={currentPage >= totalPages}
+            className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 rounded transition-colors"
+            title="Next page"
+          >
+            <ChevronRight size={14} />
           </button>
         </div>
 
         <div className="w-px h-4 bg-slate-200 mx-1" />
 
-        {totalPages > 1 && (
-          <div className="flex items-center gap-1">
-            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 rounded">
-              <ChevronLeft size={13} />
-            </button>
-            <span className="text-xs text-slate-600 font-medium">{currentPage} / {totalPages}</span>
-            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 rounded">
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        )}
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1 py-0.5">
+          <button
+            onClick={zoomOut}
+            disabled={zoom <= ZOOM_LEVELS[0]}
+            className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 rounded transition-colors"
+            title="Zoom out"
+          >
+            <Minus size={13} />
+          </button>
+          <select
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="text-xs bg-white border border-slate-200 rounded px-1 py-0.5 focus:outline-none focus:border-sky-400 w-16 text-center"
+          >
+            {ZOOM_LEVELS.map((z) => (
+              <option key={z} value={z}>{z}%</option>
+            ))}
+          </select>
+          <button
+            onClick={zoomIn}
+            disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+            className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 rounded transition-colors"
+            title="Zoom in"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
 
         <div className="w-px h-4 bg-slate-200 mx-1" />
 
@@ -464,7 +546,6 @@ export default function PdfAnnotator({
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : 'bg-sky-600 text-white hover:bg-sky-500'
             }`}
-            title="Save annotations to cloud"
           >
             {saving ? <Loader2 size={12} className="animate-spin" /> : savedOk ? <Check size={12} /> : <Save size={12} />}
             {saving ? 'Saving…' : savedOk ? 'Saved' : 'Save'}
@@ -474,64 +555,99 @@ export default function PdfAnnotator({
         <button
           onClick={handleDownload}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-white hover:bg-slate-600 transition-colors"
-          title="Download annotated PDF as SVG overlay"
         >
           <Download size={12} />
           Export
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto bg-slate-200 p-4 relative">
+      {/* PDF + Annotation area */}
+      <div className="flex-1 min-h-0 overflow-auto bg-slate-300 flex items-start justify-center p-6">
         <div
-          className="relative shadow-xl mx-auto bg-white"
-          style={{
-            width: `${zoom}%`,
-            minWidth: 400,
-            maxWidth: '100%',
-          }}
+          className="relative shadow-2xl rounded-sm overflow-hidden bg-white"
+          style={{ width: scaledWidth, height: scaledHeight, flexShrink: 0 }}
         >
-          <iframe
-            ref={iframeRef}
-            src={pdfPageUrl}
-            title={filename}
-            className="w-full border-0 block"
-            style={{ height: `calc(${zoom / 100} * 80vh)`, minHeight: 500 }}
-            onLoad={() => {}}
-          />
+          {/* PDF rendered at correct size */}
+          {!pdfLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+              <div className="flex items-center gap-2 text-slate-400 text-sm">
+                <Loader2 size={18} className="animate-spin" />
+                Loading PDF…
+              </div>
+            </div>
+          )}
+          <object
+            ref={objectRef}
+            key={`${pdfUrl}-page${currentPage}-zoom${zoom}`}
+            data={pdfSrc}
+            type="application/pdf"
+            width={scaledWidth}
+            height={scaledHeight}
+            className="block border-0"
+            onLoad={() => {
+              setPdfLoaded(true);
+              try {
+                const doc = (objectRef.current as HTMLObjectElement & {
+                  contentDocument?: Document;
+                })?.contentDocument;
+                if (doc) {
+                  const pages = doc.querySelectorAll('[data-page-number]');
+                  if (pages.length > 0) {
+                    setTotalPages(pages.length);
+                  }
+                }
+              } catch {
+              }
+            }}
+          >
+            <iframe
+              src={pdfSrc}
+              width={scaledWidth}
+              height={scaledHeight}
+              className="block border-0"
+              title={filename}
+              onLoad={() => setPdfLoaded(true)}
+            />
+          </object>
 
+          {/* Annotation overlay */}
           <div
             ref={overlayRef}
-            className="absolute inset-0 pointer-events-auto"
             style={overlayStyle}
             onMouseDown={handleOverlayMouseDown}
           >
             <svg
               id="pdf-annotation-svg"
-              className="absolute inset-0 w-full h-full overflow-visible"
-              style={{ width: '100%', height: '100%' }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: scaledWidth,
+                height: scaledHeight,
+                overflow: 'visible',
+                pointerEvents: tool === 'select' ? 'none' : 'all',
+              }}
             >
               {pageAnnotations.drawings.map((path) => (
                 <path
                   key={path.id}
-                  d={pathToSvgD(path.points)}
+                  d={pathToSvgD(path.points.map((p) => ({ x: p.x * annotationScale, y: p.y * annotationScale })))}
                   stroke={path.color}
-                  strokeWidth={path.strokeWidth}
+                  strokeWidth={path.strokeWidth * annotationScale}
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className={`cursor-pointer ${selectedId === path.id ? 'opacity-80' : ''}`}
+                  style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (tool === 'select') setSelectedId(path.id);
                   }}
                 />
               ))}
-
               {isDrawing && currentPath.length > 1 && (
                 <path
-                  d={pathToSvgD(currentPath)}
+                  d={pathToSvgD(currentPath.map((p) => ({ x: p.x * annotationScale, y: p.y * annotationScale })))}
                   stroke={tool === 'eraser' ? '#ffffff' : color}
-                  strokeWidth={tool === 'eraser' ? strokeWidth * 4 : strokeWidth}
+                  strokeWidth={(tool === 'eraser' ? strokeWidth * 4 : strokeWidth) * annotationScale}
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -543,8 +659,13 @@ export default function PdfAnnotator({
             {pageAnnotations.images.map((img) => (
               <div
                 key={img.id}
-                className={`absolute group ${selectedId === img.id ? 'ring-2 ring-sky-400' : ''}`}
-                style={{ left: img.x, top: img.y, width: img.width, height: img.height }}
+                className={`absolute ${selectedId === img.id ? 'ring-2 ring-sky-400' : ''}`}
+                style={{
+                  left: img.x * annotationScale,
+                  top: img.y * annotationScale,
+                  width: img.width * annotationScale,
+                  height: img.height * annotationScale,
+                }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (tool === 'select') {
@@ -588,8 +709,13 @@ export default function PdfAnnotator({
             {pageAnnotations.textBoxes.map((tb) => (
               <div
                 key={tb.id}
-                className={`absolute group ${selectedId === tb.id ? 'ring-2 ring-sky-400' : 'ring-1 ring-dashed ring-slate-300'}`}
-                style={{ left: tb.x, top: tb.y, width: tb.width, height: tb.height }}
+                className={`absolute ${selectedId === tb.id ? 'ring-2 ring-sky-400' : 'ring-1 ring-dashed ring-slate-400/60'}`}
+                style={{
+                  left: tb.x * annotationScale,
+                  top: tb.y * annotationScale,
+                  width: tb.width * annotationScale,
+                  height: tb.height * annotationScale,
+                }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (tool === 'select') {
@@ -626,14 +752,14 @@ export default function PdfAnnotator({
                     }
                     onBlur={() => setEditingTextId(null)}
                     className="w-full h-full resize-none bg-white/90 border-0 outline-none p-1 font-mono"
-                    style={{ fontSize: tb.fontSize, color: tb.color }}
+                    style={{ fontSize: tb.fontSize * annotationScale, color: tb.color }}
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                   />
                 ) : (
                   <div
                     className="w-full h-full p-1 font-mono whitespace-pre-wrap break-words overflow-hidden bg-white/80"
-                    style={{ fontSize: tb.fontSize, color: tb.color }}
+                    style={{ fontSize: tb.fontSize * annotationScale, color: tb.color }}
                   >
                     {tb.text || <span className="text-slate-300 italic text-xs">Double-click to edit</span>}
                   </div>
@@ -660,6 +786,27 @@ export default function PdfAnnotator({
         </div>
       </div>
 
+      {/* Page indicator bar */}
+      <div className="shrink-0 bg-white border-t border-slate-200 px-4 py-1.5 flex items-center justify-center gap-3">
+        <button
+          onClick={goToPrev}
+          disabled={currentPage <= 1}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 disabled:opacity-30 transition-colors"
+        >
+          <ChevronLeft size={13} /> Prev
+        </button>
+        <span className="text-xs text-slate-500">
+          Page <span className="font-semibold text-slate-700">{currentPage}</span> of <span className="font-semibold text-slate-700">{totalPages}</span>
+        </span>
+        <button
+          onClick={goToNext}
+          disabled={currentPage >= totalPages}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 disabled:opacity-30 transition-colors"
+        >
+          Next <ChevronRight size={13} />
+        </button>
+      </div>
+
       <input
         ref={fileInputRef}
         type="file"
@@ -667,9 +814,6 @@ export default function PdfAnnotator({
         className="hidden"
         onChange={handleImageFileInput}
       />
-
-      <canvas ref={exportCanvasRef} className="hidden" />
     </div>
   );
 }
-
