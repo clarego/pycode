@@ -17,7 +17,7 @@ import { usePyodide } from '../hooks/usePyodide';
 import { useTheme } from './ThemeContext';
 import { useSessionRecorder } from '../hooks/useSessionRecorder';
 import { serializeNotebook, createEmptyNotebook, parseNotebook, extractCodeCells } from '../lib/notebook';
-import { Upload, PanelLeftOpen, Lock, ExternalLink, Play, Square, X, GraduationCap, Lightbulb, CheckCircle2 } from 'lucide-react';
+import { Upload, Lock, ExternalLink, Play, Square, X, GraduationCap, Lightbulb, CheckCircle2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
 
 import { saveSnippet } from '../lib/snippets';
 import { saveSession } from '../lib/sessions';
@@ -115,6 +115,8 @@ export default function PythonPlayground({
   const [showDesigner, setShowDesigner] = useState(false);
   const [designerForm, setDesignerForm] = useState<FormState>(DEFAULT_FORM);
   const [fileManagerCollapsed, setFileManagerCollapsed] = useState(false);
+  const [editorCollapsed, setEditorCollapsed] = useState(false);
+  const [outputCollapsed, setOutputCollapsed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
@@ -699,34 +701,6 @@ Keep it concise - no more than 6-8 sentences total.`,
     />
   ) : fileTree;
 
-  const collapsedSidebar = (
-    <div className="flex flex-col items-center py-2 px-1 bg-slate-50 border-r border-slate-200 w-9 flex-shrink-0 h-full">
-      <button
-        onClick={() => setFileManagerCollapsed(false)}
-        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
-        title="Show file manager"
-      >
-        <PanelLeftOpen size={14} />
-      </button>
-    </div>
-  );
-
-  const editorWithSidebar = fileManagerCollapsed ? (
-    <div className="flex h-full">
-      {collapsedSidebar}
-      <div className="flex-1 min-w-0 h-full">{codeArea}</div>
-    </div>
-  ) : (
-    <ResizablePanel
-      direction="horizontal"
-      left={fileSidebar}
-      right={codeArea}
-      defaultRatio={hasBinaryFiles ? 0.22 : 0.18}
-      minRatio={0.1}
-      maxRatio={0.7}
-    />
-  );
-
   const codeEditorPane = (
     <div className="flex flex-col h-full bg-white">
       <FileTabs
@@ -743,21 +717,7 @@ Keep it concise - no more than 6-8 sentences total.`,
     </div>
   );
 
-  const editorPanel = (
-    <div className="flex flex-col h-full bg-white">
-      <FileTabs
-        files={files}
-        activeFile={activeFile}
-        onSelectFile={setActiveFile}
-        onAddFile={handleAddFile}
-        onRemoveFile={handleRemoveFile}
-        onRenameFile={handleRenameFile}
-      />
-      <div className="flex-1 min-h-0">
-        {editorWithSidebar}
-      </div>
-    </div>
-  );
+  const editorPanel = codeEditorPane;
 
   const isActiveHtml = activeFile.endsWith('.html') || activeFile.endsWith('.htm');
   const htmlPreviewContent = isActiveHtml ? (files[activeFile] || null) : null;
@@ -1117,39 +1077,160 @@ Keep it concise - no more than 6-8 sentences total.`,
 
       <div className="flex-1 min-h-0">
         {isMobile ? (
-          <ResizablePanel
-            left={editorPanel}
-            right={outputPanel}
-            direction="vertical"
-            defaultRatio={0.55}
-          />
-        ) : fileManagerCollapsed ? (
-          <div className="flex h-full">
-            {collapsedSidebar}
-            <ResizablePanel
-              left={codeEditorPane}
-              right={outputPanel}
-              direction="horizontal"
-              defaultRatio={0.6}
-            />
+          <div className="flex flex-col h-full">
+            {/* Mobile: vertical stack with collapse headers */}
+            <div className={`flex flex-col transition-all duration-200 ${editorCollapsed ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}>
+              <div className="flex items-center justify-between px-2 py-0.5 bg-slate-700 border-b border-slate-600 flex-shrink-0">
+                <span className="text-[10px] text-slate-300 font-medium uppercase tracking-wide">Editor</span>
+                <button
+                  onClick={() => setEditorCollapsed(c => !c)}
+                  className="p-0.5 text-slate-400 hover:text-white transition-colors rounded"
+                  title={editorCollapsed ? 'Expand editor' : 'Collapse editor'}
+                >
+                  {editorCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                </button>
+              </div>
+              {!editorCollapsed && <div className="flex-1 min-h-0">{editorPanel}</div>}
+            </div>
+            <div className={`flex flex-col transition-all duration-200 ${outputCollapsed ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}>
+              <div className="flex items-center justify-between px-2 py-0.5 bg-slate-700 border-b border-slate-600 flex-shrink-0">
+                <span className="text-[10px] text-slate-300 font-medium uppercase tracking-wide">Output</span>
+                <button
+                  onClick={() => setOutputCollapsed(c => !c)}
+                  className="p-0.5 text-slate-400 hover:text-white transition-colors rounded"
+                  title={outputCollapsed ? 'Expand output' : 'Collapse output'}
+                >
+                  {outputCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                </button>
+              </div>
+              {!outputCollapsed && <div className="flex-1 min-h-0">{outputPanel}</div>}
+            </div>
           </div>
         ) : (
           <div className="flex h-full">
-            <ResizablePanel
-              direction="horizontal"
-              left={fileSidebar}
-              right={
-                <ResizablePanel
-                  left={codeEditorPane}
-                  right={outputPanel}
-                  direction="horizontal"
-                  defaultRatio={0.6}
-                />
+            {/* File Manager Pane */}
+            {fileManagerCollapsed ? (
+              <div className="flex flex-col items-center py-2 px-1 bg-slate-50 border-r border-slate-200 w-9 flex-shrink-0 h-full">
+                <button
+                  onClick={() => setFileManagerCollapsed(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                  title="Expand file manager"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className={`flex flex-col flex-shrink-0 border-r border-slate-200 transition-all duration-200 ${fileManagerCollapsed ? 'w-0 overflow-hidden' : ''}`} style={{ width: hasBinaryFiles ? '22%' : '18%', minWidth: 120, maxWidth: '50%' }}>
+                <div className="flex items-center justify-between px-2 py-0.5 bg-slate-100 border-b border-slate-200 flex-shrink-0">
+                  <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Files</span>
+                  <button
+                    onClick={() => setFileManagerCollapsed(true)}
+                    className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors rounded"
+                    title="Collapse file manager"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-hidden">{fileSidebar}</div>
+              </div>
+            )}
+
+            {/* Editor + Output panes with resizable divider when both visible */}
+            {(() => {
+              const editorPaneNode = editorCollapsed ? (
+                <div className="flex flex-col items-center py-2 px-1 bg-slate-50 border-r border-slate-200 w-9 flex-shrink-0 h-full">
+                  <button
+                    onClick={() => setEditorCollapsed(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                    title="Expand editor"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                  <span className="mt-3 text-[9px] text-slate-400 font-medium uppercase tracking-widest" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Editor</span>
+                </div>
+              ) : (
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between px-2 py-0.5 bg-slate-100 border-b border-slate-200 flex-shrink-0">
+                    <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Editor</span>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => { setEditorCollapsed(true); setOutputCollapsed(false); }}
+                        className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors rounded"
+                        title="Collapse editor"
+                      >
+                        <Minimize2 size={12} />
+                      </button>
+                      <button
+                        onClick={() => { setEditorCollapsed(false); setOutputCollapsed(true); }}
+                        className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors rounded"
+                        title="Maximize editor"
+                      >
+                        <Maximize2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-hidden">{codeEditorPane}</div>
+                </div>
+              );
+
+              const outputPaneNode = outputCollapsed ? (
+                <div className="flex flex-col items-center py-2 px-1 bg-slate-800 border-l border-slate-700 w-9 flex-shrink-0 h-full">
+                  <button
+                    onClick={() => setOutputCollapsed(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
+                    title="Expand output"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="mt-3 text-[9px] text-slate-500 font-medium uppercase tracking-widest" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Output</span>
+                </div>
+              ) : (
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between px-2 py-0.5 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">Output</span>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => { setOutputCollapsed(true); setEditorCollapsed(false); }}
+                        className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors rounded"
+                        title="Collapse output"
+                      >
+                        <Minimize2 size={12} />
+                      </button>
+                      <button
+                        onClick={() => { setOutputCollapsed(false); setEditorCollapsed(true); }}
+                        className="p-0.5 text-slate-500 hover:text-slate-300 transition-colors rounded"
+                        title="Maximize output"
+                      >
+                        <Maximize2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-hidden">{outputPanel}</div>
+                </div>
+              );
+
+              if (!editorCollapsed && !outputCollapsed) {
+                return (
+                  <ResizablePanel
+                    left={editorPaneNode}
+                    right={outputPaneNode}
+                    direction="horizontal"
+                    defaultRatio={0.6}
+                    minRatio={0.2}
+                    maxRatio={0.85}
+                  />
+                );
               }
-              defaultRatio={hasBinaryFiles ? 0.22 : 0.18}
-              minRatio={0.1}
-              maxRatio={0.7}
-            />
+
+              return (
+                <div className="flex h-full flex-1 min-w-0">
+                  {editorCollapsed && editorPaneNode}
+                  {!editorCollapsed && <div className="flex-1 min-w-0 h-full">{editorPaneNode}</div>}
+                  {outputCollapsed && outputPaneNode}
+                  {!outputCollapsed && <div className="flex-1 min-w-0 h-full">{outputPaneNode}</div>}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
