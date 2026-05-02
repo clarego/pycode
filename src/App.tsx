@@ -85,7 +85,7 @@ function AppContent() {
     return <ModulesView />;
   }
 
-  if (route.type === 'admin' || (route.type === 'home' && user?.isAdmin)) {
+  if (route.type === 'admin') {
     if (user?.isAdmin) {
       return <AdminDashboard />;
     }

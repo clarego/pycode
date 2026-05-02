@@ -141,7 +141,12 @@ export default function Toolbar({
             <>
               {profile ? (
                 <div className="flex items-center gap-1">
-                  <span className="flex items-center gap-1.5 text-xs text-slate-300 bg-slate-700 px-2 py-1.5 rounded">
+                  {profile.role === 'admin' && (
+                    <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      Admin: {profile.username}
+                    </span>
+                  )}
+                  <span className={`flex items-center gap-1.5 text-xs text-slate-300 bg-slate-700 px-2 py-1.5 rounded ${profile.role === 'admin' ? 'sm:hidden' : ''}`}>
                     <User size={13} />
                     <span className="hidden sm:inline">{profile.username}</span>
                   </span>
