@@ -77,7 +77,7 @@ export default function SharedLinksManager() {
   }
 
   function copyEmbed(shareId: string) {
-    const embedCode = `<iframe src="${window.location.origin}/embed/${shareId}?hideCode=1" width="100%" height="500" frameborder="0" style="border:1px solid #e2e8f0;border-radius:8px;" allowfullscreen></iframe>`;
+    const embedCode = `<iframe src="${window.location.origin}/embed/${shareId}" width="100%" height="500" frameborder="0" style="border:1px solid #e2e8f0;border-radius:8px;" allowfullscreen></iframe>`;
     navigator.clipboard.writeText(embedCode).catch(() => {
       const ta = document.createElement('textarea');
       ta.value = embedCode;
@@ -205,7 +205,7 @@ export default function SharedLinksManager() {
                     )}
 
                     <a
-                      href={`${base}/embed/${snippet.share_id}?hideCode=1`}
+                      href={`${base}/embed/${snippet.share_id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"

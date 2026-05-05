@@ -68,6 +68,7 @@ export default function SharedView({ shortCode }: SharedViewProps) {
         initialFiles={files}
         initialBinaryFiles={binaryFiles}
         initialActiveFile={activeFile}
+        defaultCollapsedPanels
       />
     </div>
   );

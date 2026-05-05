@@ -14,7 +14,8 @@ export default function EmbedView({ shortCode }: EmbedViewProps) {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const hideCode = new URLSearchParams(window.location.search).get('hideCode') === '1';
+  const hideCodeParam = new URLSearchParams(window.location.search).get('hideCode');
+  const hideCode = hideCodeParam !== '0';
 
   useEffect(() => {
     async function load() {
