@@ -39,7 +39,7 @@ export async function saveSnippet(
     .from('code_snippets')
     .insert({
       share_id,
-      title,
+      title: description || title,
       description,
       files,
       binary_files: binaryFiles || {},

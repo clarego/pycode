@@ -38,7 +38,7 @@ export default function ShareDialog({ shareUrl, embedCode, onClose, shareCode, o
     const data = await getMySnippets(ownerUsername);
     setSnippets(data);
     const titles: Record<string, string> = {};
-    data.forEach((s) => { titles[s.share_id] = s.title || ''; });
+    data.forEach((s) => { titles[s.share_id] = s.title || s.description || ''; });
     setEditingTitle(titles);
     setLoadingSnippets(false);
   }, [ownerUsername]);
@@ -369,9 +369,6 @@ export default function ShareDialog({ shareUrl, embedCode, onClose, shareCode, o
                             {new Date(snippet.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </span>
                         </div>
-                        {snippet.description && (
-                          <p className="text-[11px] text-slate-500 mb-2 leading-relaxed line-clamp-2">{snippet.description}</p>
-                        )}
 
                         <div className="flex items-center gap-1.5">
                           <div className="relative flex-1">
