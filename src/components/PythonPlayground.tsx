@@ -64,6 +64,7 @@ interface PythonPlaygroundProps {
   praiseTaskId?: string | null;
   isTaskDone?: boolean;
   headerSlot?: React.ReactNode;
+  defaultCollapsedPanels?: boolean;
 }
 
 export default function PythonPlayground({
@@ -89,6 +90,7 @@ export default function PythonPlayground({
   praiseTaskId,
   isTaskDone = false,
   headerSlot,
+  defaultCollapsedPanels = false,
 }: PythonPlaygroundProps) {
   const { hackerMode } = useTheme();
   const [files, setFiles] = useState<Record<string, string>>(
@@ -114,8 +116,8 @@ export default function PythonPlayground({
   const [isMobile, setIsMobile] = useState(false);
   const [showDesigner, setShowDesigner] = useState(false);
   const [designerForm, setDesignerForm] = useState<FormState>(DEFAULT_FORM);
-  const [fileManagerCollapsed, setFileManagerCollapsed] = useState(false);
-  const [editorCollapsed, setEditorCollapsed] = useState(false);
+  const [fileManagerCollapsed, setFileManagerCollapsed] = useState(defaultCollapsedPanels);
+  const [editorCollapsed, setEditorCollapsed] = useState(defaultCollapsedPanels);
   const [outputCollapsed, setOutputCollapsed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);

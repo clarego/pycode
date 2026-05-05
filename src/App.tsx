@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './components/auth/AuthContext';
 import { ThemeProvider } from './components/ThemeContext';
 import PythonPlayground from './components/PythonPlayground';
 import SharedView from './components/SharedView';
+import SharedCodeView from './components/SharedCodeView';
 import EmbedView from './components/EmbedView';
 import SessionReview from './components/SessionReview';
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -72,7 +73,27 @@ function AppContent() {
     return <SessionReview shareId={route.code} />;
   }
   if (route.type === 'shared') {
-    return <SharedView shortCode={route.code} />;
+    const sharedProfile = user ? { username: user.username, role: user.isAdmin ? 'admin' : 'student' } : null;
+    return (
+      <>
+        <SharedCodeView
+          shortCode={route.code}
+          profile={sharedProfile}
+          apiKey={apiKey}
+          logout={logout}
+          onShowLogin={() => setShowLogin(true)}
+          onShowChangePassword={() => setShowChangePassword(true)}
+        />
+        {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+        {showChangePassword && user && (
+          <ChangePasswordModal
+            username={user.username}
+            onClose={() => setShowChangePassword(false)}
+            onChangePassword={changePassword}
+          />
+        )}
+      </>
+    );
   }
   if (route.type === 'embed') {
     return <EmbedView shortCode={route.code} />;
