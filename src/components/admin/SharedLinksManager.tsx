@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link2, Trash2, Eye, EyeOff, ExternalLink, RefreshCw, Search, Calendar, User, FileCode2 } from 'lucide-react';
+import { Link2, Trash2, Eye, EyeOff, ExternalLink, RefreshCw, Search, Calendar, User, FileCode2, Code2, Check } from 'lucide-react';
 import { getAllSnippets, adminUpdateSnippet, adminDeleteSnippet } from '../../lib/snippets';
 import type { CodeSnippet } from '../../lib/snippets';
 
@@ -26,6 +26,7 @@ export default function SharedLinksManager() {
   const [savingDesc, setSavingDesc] = useState<Record<string, boolean>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [copiedEmbedId, setCopiedEmbedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,6 +74,20 @@ export default function SharedLinksManager() {
     await adminDeleteSnippet(shareId);
     setSnippets((prev) => prev.filter((s) => s.share_id !== shareId));
     setDeletingId(null);
+  }
+
+  function copyEmbed(shareId: string) {
+    const embedCode = `<iframe src="${window.location.origin}/embed/${shareId}" width="100%" height="500" frameborder="0" style="border:1px solid #e2e8f0;border-radius:8px;" allowfullscreen></iframe>`;
+    navigator.clipboard.writeText(embedCode).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = embedCode;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+    setCopiedEmbedId(shareId);
+    setTimeout(() => setCopiedEmbedId(null), 2000);
   }
 
   const base = window.location.origin;
@@ -198,6 +213,18 @@ export default function SharedLinksManager() {
                     >
                       <ExternalLink size={14} />
                     </a>
+
+                    <button
+                      onClick={() => copyEmbed(snippet.share_id)}
+                      title="Copy embed code"
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        copiedEmbedId === snippet.share_id
+                          ? 'text-emerald-600 bg-emerald-50'
+                          : 'text-slate-400 hover:text-sky-600 hover:bg-sky-50'
+                      }`}
+                    >
+                      {copiedEmbedId === snippet.share_id ? <Check size={14} /> : <Code2 size={14} />}
+                    </button>
 
                     <button
                       onClick={() => handleTogglePublic(snippet)}
