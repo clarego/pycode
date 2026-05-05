@@ -12,6 +12,15 @@ export interface CodeSnippet {
   last_accessed: string | null;
   created_by: string | null;
   is_public: boolean;
+  folder_id: string | null;
+}
+
+export interface SharedLinkFolder {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  position: number;
+  created_at: string;
 }
 
 function generateShareId(length = 7): string {
@@ -163,6 +172,67 @@ export async function adminDeleteSnippet(
     .from('code_snippets')
     .delete()
     .eq('share_id', shareId);
+
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function adminMoveSnippetToFolder(
+  shareId: string,
+  folderId: string | null
+): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('code_snippets')
+    .update({ folder_id: folderId })
+    .eq('share_id', shareId);
+
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function getAllFolders(): Promise<SharedLinkFolder[]> {
+  const { data, error } = await supabase
+    .from('shared_link_folders')
+    .select('*')
+    .order('position', { ascending: true });
+
+  if (error || !data) return [];
+  return data as SharedLinkFolder[];
+}
+
+export async function createFolder(
+  name: string,
+  parentId: string | null,
+  position: number
+): Promise<SharedLinkFolder | null> {
+  const { data, error } = await supabase
+    .from('shared_link_folders')
+    .insert({ name, parent_id: parentId, position })
+    .select()
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as SharedLinkFolder;
+}
+
+export async function updateFolder(
+  id: string,
+  updates: { name?: string; position?: number }
+): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('shared_link_folders')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function deleteFolder(id: string): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('shared_link_folders')
+    .delete()
+    .eq('id', id);
 
   if (error) return { error: error.message };
   return {};
