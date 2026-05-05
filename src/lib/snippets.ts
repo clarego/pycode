@@ -30,7 +30,8 @@ export async function saveSnippet(
   title = '',
   binaryFiles?: Record<string, string>,
   activeFile?: string,
-  username?: string
+  username?: string,
+  description = ''
 ): Promise<{ shortCode: string } | { error: string }> {
   const share_id = generateShareId();
 
@@ -39,6 +40,7 @@ export async function saveSnippet(
     .insert({
       share_id,
       title,
+      description,
       files,
       binary_files: binaryFiles || {},
       active_file: activeFile || null,
