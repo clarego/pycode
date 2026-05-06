@@ -25,35 +25,15 @@ function getFileNames(files: Record<string, string>): string {
   return `${names[0]} +${names.length - 1} more`;
 }
 
-// Minimal syntax-highlighted code preview (no external deps)
-function CodePreview({ files, activeFile }: { files: Record<string, string>; activeFile: string | null }) {
-  const fileNames = Object.keys(files);
-  if (fileNames.length === 0) return null;
-
-  const firstFile = activeFile && files[activeFile] ? activeFile : fileNames[0];
-  const code = files[firstFile] || '';
-  const lines = code.split('\n').slice(0, 12);
-
+function EmbedPreview({ shareId, base }: { shareId: string; base: string }) {
   return (
-    <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 bg-[#1e1e2e]">
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#181825] border-b border-[#313244]">
-        <FileCode2 size={11} className="text-[#89b4fa]" />
-        <span className="text-[10px] font-mono text-[#cdd6f4] truncate">{firstFile}</span>
-        {fileNames.length > 1 && (
-          <span className="text-[9px] text-[#6c7086] ml-auto shrink-0">+{fileNames.length - 1} more</span>
-        )}
-      </div>
-      <pre className="px-3 py-2 text-[10px] leading-[1.6] font-mono text-[#cdd6f4] overflow-hidden max-h-[120px] select-none">
-        {lines.map((line, i) => (
-          <div key={i} className="flex">
-            <span className="text-[#45475a] w-5 shrink-0 text-right mr-3 select-none">{i + 1}</span>
-            <span className="truncate">{line || ' '}</span>
-          </div>
-        ))}
-        {code.split('\n').length > 12 && (
-          <div className="text-[#45475a] mt-0.5">…</div>
-        )}
-      </pre>
+    <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 bg-slate-100" style={{ height: 300 }}>
+      <iframe
+        src={`${base}/embed/${shareId}?hideCode=0`}
+        className="w-full h-full border-0 pointer-events-none"
+        title={`Preview /${shareId}`}
+        sandbox="allow-scripts allow-same-origin"
+      />
     </div>
   );
 }
@@ -89,7 +69,6 @@ function SnippetCard({
   const descChanged = (editingDesc[snippet.share_id] ?? '') !== (snippet.description ?? '');
   const base = window.location.origin;
   const [previewOpen, setPreviewOpen] = useState(false);
-  const hasFiles = Object.keys(snippet.files).length > 0;
 
   return (
     <div
@@ -152,21 +131,19 @@ function SnippetCard({
             className="w-full mt-1.5 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 placeholder:text-slate-300"
           />
 
-          {/* Code preview */}
-          {hasFiles && (
-            <div>
-              <button
-                onClick={() => setPreviewOpen((v) => !v)}
-                className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-600 transition-colors"
-              >
-                {previewOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                {previewOpen ? 'Hide preview' : 'Show preview'}
-              </button>
-              {previewOpen && (
-                <CodePreview files={snippet.files} activeFile={snippet.active_file} />
-              )}
-            </div>
-          )}
+          {/* Rendered preview */}
+          <div>
+            <button
+              onClick={() => setPreviewOpen((v) => !v)}
+              className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-600 transition-colors"
+            >
+              {previewOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              {previewOpen ? 'Hide preview' : 'Show preview'}
+            </button>
+            {previewOpen && (
+              <EmbedPreview shareId={snippet.share_id} base={base} />
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
