@@ -3,7 +3,7 @@ import {
   Link2, Trash2, Eye, EyeOff, ExternalLink, RefreshCw, Search,
   Calendar, User, FileCode2, Code2, Check, Folder, FolderOpen,
   FolderPlus, ChevronRight, ChevronDown, Pencil, X, FolderMinus,
-  ChevronUp,
+  ChevronUp, Columns2, Plus, Minus,
 } from 'lucide-react';
 import {
   getAllSnippets, adminUpdateSnippet, adminDeleteSnippet,
@@ -57,7 +57,6 @@ interface SnippetCardProps {
   dragging: boolean;
   onDragStart: (shareId: string) => void;
   onDragEnd: () => void;
-  // unfiled reorder drop target
   onDragEnterCard?: (shareId: string) => void;
 }
 
@@ -275,7 +274,6 @@ function FolderNode({
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
       onDrop={handleDrop}
     >
-      {/* Folder header */}
       <div
         className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none"
         style={{ paddingLeft: `${12 + indentPx}px` }}
@@ -312,7 +310,6 @@ function FolderNode({
           {folderSnippets.length + children.reduce((acc, c) => acc + snippets.filter((s) => s.folder_id === c.id).length, 0)}
         </span>
 
-        {/* Folder actions */}
         <div className="flex items-center gap-0.5 shrink-0 ml-1" onClick={(e) => e.stopPropagation()}>
           {depth < 3 && (
             <button
@@ -340,10 +337,8 @@ function FolderNode({
         </div>
       </div>
 
-      {/* Folder contents */}
       {open && (
         <div className="px-3 pb-3 space-y-2" style={{ paddingLeft: `${12 + indentPx}px` }}>
-          {/* Subfolders */}
           {children.map((child) => (
             <FolderNode
               key={child.id}
@@ -371,7 +366,6 @@ function FolderNode({
             />
           ))}
 
-          {/* Snippets in this folder */}
           {folderSnippets.map((s) => (
             <SnippetCard
               key={s.share_id}
@@ -405,6 +399,78 @@ function FolderNode({
   );
 }
 
+// ── Column panel ──────────────────────────────────────────────────────────────
+
+interface ColumnPanelProps {
+  index: number;
+  totalColumns: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onRemove: () => void;
+  children: React.ReactNode;
+}
+
+function ColumnPanel({ index, totalColumns, collapsed, onToggleCollapse, onRemove, children }: ColumnPanelProps) {
+  return (
+    <div className={`flex flex-col border border-slate-200 rounded-xl bg-white overflow-hidden transition-all ${
+      collapsed ? 'min-w-[44px] max-w-[44px]' : 'flex-1 min-w-0'
+    }`}>
+      {/* Column header */}
+      <div className={`flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 shrink-0 ${
+        collapsed ? 'flex-col py-3 px-2' : ''
+      }`}>
+        {collapsed ? (
+          <>
+            <button
+              onClick={onToggleCollapse}
+              title="Expand column"
+              className="p-1 text-slate-400 hover:text-sky-600 rounded transition-colors"
+            >
+              <ChevronRight size={13} />
+            </button>
+            <span
+              className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider"
+              style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+            >
+              Col {index + 1}
+            </span>
+          </>
+        ) : (
+          <>
+            <Columns2 size={13} className="text-slate-400 shrink-0" />
+            <span className="text-xs font-semibold text-slate-500 flex-1">Column {index + 1}</span>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={onToggleCollapse}
+                title="Minimize column"
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition-colors"
+              >
+                <Minus size={12} />
+              </button>
+              {totalColumns > 1 && (
+                <button
+                  onClick={onRemove}
+                  title="Remove column"
+                  className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Column content */}
+      {!collapsed && (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function SharedLinksManager() {
@@ -419,10 +485,12 @@ export default function SharedLinksManager() {
   const [copiedEmbedId, setCopiedEmbedId] = useState<string | null>(null);
   const [draggingSnippetId, setDraggingSnippetId] = useState<string | null>(null);
   const [rootDragOver, setRootDragOver] = useState(false);
-  // unfiled reorder: tracks the live-preview order while dragging
   const [unfiledOrder, setUnfiledOrder] = useState<string[]>([]);
-  // tracks which card the dragged item is hovering over (for insertion)
   const dragOverUnfiledId = useRef<string | null>(null);
+
+  // Column layout state: number of columns and which are collapsed
+  const [numColumns, setNumColumns] = useState(2);
+  const [collapsedColumns, setCollapsedColumns] = useState<boolean[]>([false, false]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -437,7 +505,6 @@ export default function SharedLinksManager() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Keep unfiledOrder in sync when snippets change (initial load or after moves)
   useEffect(() => {
     const unfiled = snippets
       .filter((s) => !s.folder_id)
@@ -464,11 +531,19 @@ export default function SharedLinksManager() {
     : snippets;
 
   const snippetMap = Object.fromEntries(snippets.map((s) => [s.share_id, s]));
-  const unfiledSnippets = unfiledOrder
-    .map((id) => snippetMap[id])
-    .filter(Boolean) as CodeSnippet[];
-
+  const unfiledSnippets = unfiledOrder.map((id) => snippetMap[id]).filter(Boolean) as CodeSnippet[];
   const topLevelFolders = folders.filter((f) => f.parent_id === null);
+
+  // Distribute items (folders + unfiled block) across columns by index
+  // "sections" = each top-level folder + the unfiled block at the end
+  const sectionCount = topLevelFolders.length + 1; // +1 for the unfiled zone
+
+  function getSectionColumnIndex(sectionIdx: number): number {
+    // Round-robin across non-collapsed columns
+    const activeCols = collapsedColumns.map((c, i) => (!c ? i : -1)).filter((i) => i !== -1);
+    if (activeCols.length === 0) return 0;
+    return activeCols[sectionIdx % activeCols.length];
+  }
 
   async function handleTogglePublic(snippet: CodeSnippet) {
     setTogglingId(snippet.share_id);
@@ -542,10 +617,9 @@ export default function SharedLinksManager() {
     if (created) setFolders((prev) => [...prev, created]);
   }
 
-  // Unfiled drag-to-reorder handlers
   function handleUnfiledDragEnterCard(targetShareId: string) {
     if (!draggingSnippetId || draggingSnippetId === targetShareId) return;
-    if (!unfiledOrder.includes(draggingSnippetId)) return; // dragging from folder into unfiled zone — ignore reorder
+    if (!unfiledOrder.includes(draggingSnippetId)) return;
     dragOverUnfiledId.current = targetShareId;
     setUnfiledOrder((prev) => {
       const from = prev.indexOf(draggingSnippetId);
@@ -561,7 +635,6 @@ export default function SharedLinksManager() {
   async function handleUnfiledDragEnd() {
     setDraggingSnippetId(null);
     dragOverUnfiledId.current = null;
-    // Persist new order
     const updates = unfiledOrder.map((shareId, idx) => ({ share_id: shareId, position: idx }));
     await updateSnippetPositions(updates);
     setSnippets((prev) =>
@@ -570,6 +643,22 @@ export default function SharedLinksManager() {
         return idx !== -1 ? { ...s, position: idx } : s;
       })
     );
+  }
+
+  function addColumn() {
+    if (numColumns >= 4) return;
+    setNumColumns((n) => n + 1);
+    setCollapsedColumns((prev) => [...prev, false]);
+  }
+
+  function removeColumn(idx: number) {
+    if (numColumns <= 1) return;
+    setNumColumns((n) => n - 1);
+    setCollapsedColumns((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function toggleCollapse(idx: number) {
+    setCollapsedColumns((prev) => prev.map((c, i) => (i === idx ? !c : c)));
   }
 
   const sharedProps = {
@@ -593,95 +682,34 @@ export default function SharedLinksManager() {
     onSubfolderCreated: handleSubfolderCreated,
   };
 
-  return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-800">Shared Links</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Manage all shared code snippets — add descriptions, disable or delete links.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleCreateTopFolder}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50 border border-sky-200 rounded-lg transition-colors"
-          >
-            <FolderPlus size={13} />
-            New Folder
-          </button>
-          <button
-            onClick={load}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-        </div>
-      </div>
+  // Build per-column section lists
+  const columnSections: React.ReactNode[][] = Array.from({ length: numColumns }, () => []);
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Search by user, share code, file name or description…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
-        />
-      </div>
+  if (!isSearching) {
+    // Assign each section (folder or unfiled) round-robin to columns
+    const allSectionIndices = [...topLevelFolders.map((_, i) => i), topLevelFolders.length]; // last = unfiled
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">
-          <RefreshCw size={18} className="animate-spin mr-2" />
-          <span className="text-sm">Loading shared links…</span>
-        </div>
-      ) : isSearching ? (
-        /* Search results — flat list ignoring folders */
-        <div>
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-              <Link2 size={32} className="mb-3 opacity-40" />
-              <p className="text-sm font-medium">No shared links found</p>
-              <p className="text-xs mt-1">Try a different search term</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filtered.map((snippet) => (
-                <SnippetCard
-                  key={snippet.share_id}
-                  snippet={snippet}
-                  folders={folders}
-                  {...sharedProps}
-                  dragging={draggingSnippetId === snippet.share_id}
-                  onDragStart={sharedProps.onDragStartSnippet}
-                  onDragEnd={sharedProps.onDragEndSnippet}
-                  onDelete={sharedProps.onDeleteSnippet}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* Normal folder view */
-        <div className="space-y-3">
-          {/* Top-level folders */}
-          {topLevelFolders.map((folder) => (
-            <FolderNode
-              key={folder.id}
-              folder={folder}
-              allFolders={folders}
-              snippets={snippets}
-              depth={0}
-              {...sharedProps}
-            />
-          ))}
+    allSectionIndices.forEach((sectionIdx) => {
+      const colIdx = getSectionColumnIndex(sectionIdx);
+      const col = columnSections[colIdx] || columnSections[0];
 
-          {/* Unfiled snippets drop zone + list */}
+      if (sectionIdx < topLevelFolders.length) {
+        const folder = topLevelFolders[sectionIdx];
+        col.push(
+          <FolderNode
+            key={folder.id}
+            folder={folder}
+            allFolders={folders}
+            snippets={snippets}
+            depth={0}
+            {...sharedProps}
+          />
+        );
+      } else {
+        // Unfiled block
+        col.push(
           <div
+            key="unfiled"
             className={`rounded-xl border transition-all ${
               rootDragOver ? 'border-sky-400 bg-sky-50/60' : 'border-dashed border-slate-200'
             }`}
@@ -721,13 +749,119 @@ export default function SharedLinksManager() {
               </div>
             )}
           </div>
+        );
+      }
+    });
+  }
 
-          {topLevelFolders.length === 0 && snippets.length === 0 && (
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Shared Links</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Manage all shared code snippets — add descriptions, disable or delete links.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCreateTopFolder}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50 border border-sky-200 rounded-lg transition-colors"
+          >
+            <FolderPlus size={13} />
+            New Folder
+          </button>
+          {!isSearching && numColumns < 4 && (
+            <button
+              onClick={addColumn}
+              title="Add a column"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors"
+            >
+              <Plus size={13} />
+              Add Column
+            </button>
+          )}
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search by user, share code, file name or description…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400"
+        />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-slate-400">
+          <RefreshCw size={18} className="animate-spin mr-2" />
+          <span className="text-sm">Loading shared links…</span>
+        </div>
+      ) : isSearching ? (
+        /* Search results — single flat list */
+        <div>
+          {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <Link2 size={32} className="mb-3 opacity-40" />
-              <p className="text-sm font-medium">No shared links yet</p>
+              <p className="text-sm font-medium">No shared links found</p>
+              <p className="text-xs mt-1">Try a different search term</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((snippet) => (
+                <SnippetCard
+                  key={snippet.share_id}
+                  snippet={snippet}
+                  folders={folders}
+                  {...sharedProps}
+                  dragging={draggingSnippetId === snippet.share_id}
+                  onDragStart={sharedProps.onDragStartSnippet}
+                  onDragEnd={sharedProps.onDragEndSnippet}
+                  onDelete={sharedProps.onDeleteSnippet}
+                />
+              ))}
             </div>
           )}
+        </div>
+      ) : sectionCount === 1 && unfiledSnippets.length === 0 && topLevelFolders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+          <Link2 size={32} className="mb-3 opacity-40" />
+          <p className="text-sm font-medium">No shared links yet</p>
+        </div>
+      ) : (
+        /* Multi-column layout */
+        <div className="flex gap-3 items-stretch min-h-0">
+          {Array.from({ length: numColumns }, (_, colIdx) => (
+            <ColumnPanel
+              key={colIdx}
+              index={colIdx}
+              totalColumns={numColumns}
+              collapsed={collapsedColumns[colIdx] ?? false}
+              onToggleCollapse={() => toggleCollapse(colIdx)}
+              onRemove={() => removeColumn(colIdx)}
+            >
+              {columnSections[colIdx]?.length > 0
+                ? columnSections[colIdx]
+                : (
+                  <div className="text-xs text-slate-300 text-center py-8 border border-dashed border-slate-100 rounded-lg">
+                    Empty
+                  </div>
+                )}
+            </ColumnPanel>
+          ))}
         </div>
       )}
 
