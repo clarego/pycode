@@ -26,13 +26,31 @@ function getFileNames(files: Record<string, string>): string {
 }
 
 function EmbedPreview({ shareId, base }: { shareId: string; base: string }) {
+  const scale = 0.45;
+  const previewH = 220;
+  const iframeW = Math.round(100 / scale);
+  const iframeH = Math.round(previewH / scale);
+
   return (
-    <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 bg-slate-100" style={{ height: 300 }}>
+    <div
+      className="mt-2 rounded-lg overflow-hidden border border-slate-200 bg-slate-900"
+      style={{ height: previewH, position: 'relative' }}
+    >
       <iframe
-        src={`${base}/embed/${shareId}?hideCode=0`}
-        className="w-full h-full border-0 pointer-events-none"
+        src={`${base}/embed/${shareId}`}
         title={`Preview /${shareId}`}
         sandbox="allow-scripts allow-same-origin"
+        style={{
+          width: `${iframeW}%`,
+          height: iframeH,
+          border: 'none',
+          pointerEvents: 'none',
+          transformOrigin: 'top left',
+          transform: `scale(${scale})`,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+        }}
       />
     </div>
   );
