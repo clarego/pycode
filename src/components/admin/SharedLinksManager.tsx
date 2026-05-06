@@ -3,11 +3,12 @@ import {
   Link2, Trash2, Eye, EyeOff, ExternalLink, RefreshCw, Search,
   Calendar, User, FileCode2, Code2, Check, Folder, FolderOpen,
   FolderPlus, ChevronRight, ChevronDown, Pencil, X, FolderMinus,
+  ChevronUp,
 } from 'lucide-react';
 import {
   getAllSnippets, adminUpdateSnippet, adminDeleteSnippet,
   adminMoveSnippetToFolder, getAllFolders, createFolder,
-  updateFolder, deleteFolder,
+  updateFolder, deleteFolder, updateSnippetPositions,
 } from '../../lib/snippets';
 import type { CodeSnippet, SharedLinkFolder } from '../../lib/snippets';
 
@@ -22,6 +23,39 @@ function getFileNames(files: Record<string, string>): string {
   if (names.length === 0) return 'No files';
   if (names.length === 1) return names[0];
   return `${names[0]} +${names.length - 1} more`;
+}
+
+// Minimal syntax-highlighted code preview (no external deps)
+function CodePreview({ files, activeFile }: { files: Record<string, string>; activeFile: string | null }) {
+  const fileNames = Object.keys(files);
+  if (fileNames.length === 0) return null;
+
+  const firstFile = activeFile && files[activeFile] ? activeFile : fileNames[0];
+  const code = files[firstFile] || '';
+  const lines = code.split('\n').slice(0, 12);
+
+  return (
+    <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 bg-[#1e1e2e]">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#181825] border-b border-[#313244]">
+        <FileCode2 size={11} className="text-[#89b4fa]" />
+        <span className="text-[10px] font-mono text-[#cdd6f4] truncate">{firstFile}</span>
+        {fileNames.length > 1 && (
+          <span className="text-[9px] text-[#6c7086] ml-auto shrink-0">+{fileNames.length - 1} more</span>
+        )}
+      </div>
+      <pre className="px-3 py-2 text-[10px] leading-[1.6] font-mono text-[#cdd6f4] overflow-hidden max-h-[120px] select-none">
+        {lines.map((line, i) => (
+          <div key={i} className="flex">
+            <span className="text-[#45475a] w-5 shrink-0 text-right mr-3 select-none">{i + 1}</span>
+            <span className="truncate">{line || ' '}</span>
+          </div>
+        ))}
+        {code.split('\n').length > 12 && (
+          <div className="text-[#45475a] mt-0.5">…</div>
+        )}
+      </pre>
+    </div>
+  );
 }
 
 // ── Snippet card ─────────────────────────────────────────────────────────────
@@ -43,15 +77,19 @@ interface SnippetCardProps {
   dragging: boolean;
   onDragStart: (shareId: string) => void;
   onDragEnd: () => void;
+  // unfiled reorder drop target
+  onDragEnterCard?: (shareId: string) => void;
 }
 
 function SnippetCard({
   snippet, editingDesc, savingDesc, deletingId, togglingId, copiedEmbedId,
   onDescChange, onSaveDesc, onTogglePublic, onDelete, onCopyEmbed,
-  dragging, onDragStart, onDragEnd, onMoveToFolder, folders,
+  dragging, onDragStart, onDragEnd, onMoveToFolder, onDragEnterCard,
 }: SnippetCardProps) {
   const descChanged = (editingDesc[snippet.share_id] ?? '') !== (snippet.description ?? '');
   const base = window.location.origin;
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const hasFiles = Object.keys(snippet.files).length > 0;
 
   return (
     <div
@@ -61,6 +99,7 @@ function SnippetCard({
         onDragStart(snippet.share_id);
       }}
       onDragEnd={onDragEnd}
+      onDragEnter={() => onDragEnterCard?.(snippet.share_id)}
       className={`bg-white border rounded-xl overflow-hidden transition-all cursor-grab active:cursor-grabbing select-none ${
         dragging ? 'opacity-40 scale-95' : ''
       } ${snippet.is_public ? 'border-slate-200' : 'border-amber-200 bg-amber-50/30'}`}
@@ -112,6 +151,22 @@ function SnippetCard({
             onKeyDown={(e) => { if (e.key === 'Enter' && descChanged) onSaveDesc(snippet.share_id); }}
             className="w-full mt-1.5 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 placeholder:text-slate-300"
           />
+
+          {/* Code preview */}
+          {hasFiles && (
+            <div>
+              <button
+                onClick={() => setPreviewOpen((v) => !v)}
+                className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-600 transition-colors"
+              >
+                {previewOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                {previewOpen ? 'Hide preview' : 'Show preview'}
+              </button>
+              {previewOpen && (
+                <CodePreview files={snippet.files} activeFile={snippet.active_file} />
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
@@ -181,7 +236,6 @@ interface FolderNodeProps {
   allFolders: SharedLinkFolder[];
   snippets: CodeSnippet[];
   depth: number;
-  // shared state / handlers passed down
   editingDesc: Record<string, string>;
   savingDesc: Record<string, boolean>;
   deletingId: string | null;
@@ -388,6 +442,10 @@ export default function SharedLinksManager() {
   const [copiedEmbedId, setCopiedEmbedId] = useState<string | null>(null);
   const [draggingSnippetId, setDraggingSnippetId] = useState<string | null>(null);
   const [rootDragOver, setRootDragOver] = useState(false);
+  // unfiled reorder: tracks the live-preview order while dragging
+  const [unfiledOrder, setUnfiledOrder] = useState<string[]>([]);
+  // tracks which card the dragged item is hovering over (for insertion)
+  const dragOverUnfiledId = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -402,7 +460,19 @@ export default function SharedLinksManager() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Search filters across ALL snippets regardless of folder
+  // Keep unfiledOrder in sync when snippets change (initial load or after moves)
+  useEffect(() => {
+    const unfiled = snippets
+      .filter((s) => !s.folder_id)
+      .sort((a, b) => {
+        if (a.position != null && b.position != null) return a.position - b.position;
+        if (a.position != null) return -1;
+        if (b.position != null) return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    setUnfiledOrder(unfiled.map((s) => s.share_id));
+  }, [snippets]);
+
   const isSearching = search.trim().length > 0;
   const filtered = isSearching
     ? snippets.filter((s) => {
@@ -416,8 +486,11 @@ export default function SharedLinksManager() {
       })
     : snippets;
 
-  // Unfiled snippets (no folder_id, only shown outside search)
-  const unfiledSnippets = snippets.filter((s) => !s.folder_id);
+  const snippetMap = Object.fromEntries(snippets.map((s) => [s.share_id, s]));
+  const unfiledSnippets = unfiledOrder
+    .map((id) => snippetMap[id])
+    .filter(Boolean) as CodeSnippet[];
+
   const topLevelFolders = folders.filter((f) => f.parent_id === null);
 
   async function handleTogglePublic(snippet: CodeSnippet) {
@@ -476,7 +549,6 @@ export default function SharedLinksManager() {
     if (!confirm('Delete this folder? Links inside will be moved to the unfoldered area.')) return;
     await deleteFolder(id);
     setFolders((prev) => prev.filter((f) => f.id !== id));
-    // Move child snippets to root
     setSnippets((prev) => prev.map((s) => s.folder_id === id ? { ...s, folder_id: null } : s));
   }
 
@@ -491,6 +563,36 @@ export default function SharedLinksManager() {
     const pos = topLevelFolders.length;
     const created = await createFolder('New Subject', null, pos);
     if (created) setFolders((prev) => [...prev, created]);
+  }
+
+  // Unfiled drag-to-reorder handlers
+  function handleUnfiledDragEnterCard(targetShareId: string) {
+    if (!draggingSnippetId || draggingSnippetId === targetShareId) return;
+    if (!unfiledOrder.includes(draggingSnippetId)) return; // dragging from folder into unfiled zone — ignore reorder
+    dragOverUnfiledId.current = targetShareId;
+    setUnfiledOrder((prev) => {
+      const from = prev.indexOf(draggingSnippetId);
+      const to = prev.indexOf(targetShareId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      next.splice(from, 1);
+      next.splice(to, 0, draggingSnippetId);
+      return next;
+    });
+  }
+
+  async function handleUnfiledDragEnd() {
+    setDraggingSnippetId(null);
+    dragOverUnfiledId.current = null;
+    // Persist new order
+    const updates = unfiledOrder.map((shareId, idx) => ({ share_id: shareId, position: idx }));
+    await updateSnippetPositions(updates);
+    setSnippets((prev) =>
+      prev.map((s) => {
+        const idx = unfiledOrder.indexOf(s.share_id);
+        return idx !== -1 ? { ...s, position: idx } : s;
+      })
+    );
   }
 
   const sharedProps = {
@@ -634,8 +736,9 @@ export default function SharedLinksManager() {
                     {...sharedProps}
                     dragging={draggingSnippetId === snippet.share_id}
                     onDragStart={sharedProps.onDragStartSnippet}
-                    onDragEnd={sharedProps.onDragEndSnippet}
+                    onDragEnd={handleUnfiledDragEnd}
                     onDelete={sharedProps.onDeleteSnippet}
+                    onDragEnterCard={handleUnfiledDragEnterCard}
                   />
                 ))}
               </div>

@@ -13,6 +13,7 @@ export interface CodeSnippet {
   created_by: string | null;
   is_public: boolean;
   folder_id: string | null;
+  position: number | null;
 }
 
 export interface SharedLinkFolder {
@@ -236,4 +237,14 @@ export async function deleteFolder(id: string): Promise<{ error?: string }> {
 
   if (error) return { error: error.message };
   return {};
+}
+
+export async function updateSnippetPositions(
+  updates: { share_id: string; position: number }[]
+): Promise<void> {
+  await Promise.all(
+    updates.map(({ share_id, position }) =>
+      supabase.from('code_snippets').update({ position }).eq('share_id', share_id)
+    )
+  );
 }
